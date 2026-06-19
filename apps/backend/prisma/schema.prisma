@@ -16,18 +16,81 @@ enum UserRole {
   REGULATOR
 }
 
+enum BatchStatus {
+  ACTIVE
+  RECALLED
+  EXPIRED
+  TRANSFERRED
+  REVOKED
+}
+
+model Manufacturer {
+  id String @id @default(uuid())
+
+  name String
+
+  licenseNumber String @unique
+
+  email String?
+
+  phone String?
+
+  address String?
+
+  createdAt DateTime @default(now())
+
+  users   User[]
+  batches Batch[]
+}
+
+model Batch {
+  id String @id @default(uuid())
+
+  drugName String
+
+  batchNumber String @unique
+
+  manufactureDate DateTime
+
+  expiryDate DateTime
+
+  quantity Int
+
+  qrCode String?
+
+  status BatchStatus @default(ACTIVE)
+
+  manufacturerId String
+
+  manufacturer Manufacturer @relation(fields: [manufacturerId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+}
+
 model User {
-  id                String    @id @default(uuid())
-  email             String    @unique
-  password          String
-  fullName          String
-  organizationName  String?
-  phone             String?
+  id String @id @default(uuid())
 
-  role              UserRole
+  email String @unique
 
-  isVerified        Boolean   @default(false)
+  password String
 
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  fullName String
+
+  organizationName String?
+
+  phone String?
+
+  role UserRole
+
+  isVerified Boolean @default(false)
+
+  manufacturerId String?
+
+  manufacturer Manufacturer? @relation(fields: [manufacturerId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
 }
