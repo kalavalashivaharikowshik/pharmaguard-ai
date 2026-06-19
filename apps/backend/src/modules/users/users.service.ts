@@ -17,4 +17,12 @@ export class UsersService {
       data,
     });
   }
+  findById(id: string) {
+    return this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        manufacturer: true,
+      },
+    });
+  }
 }

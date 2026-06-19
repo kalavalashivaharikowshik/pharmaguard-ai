@@ -3,12 +3,16 @@ import { JwtModule } from '@nestjs/jwt';
 
 import { UsersModule } from '../users/users.module';
 
+import { PassportModule } from '@nestjs/passport';
+import { JwtStrategy } from './strategies/jwt.strategy';
+
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 
 @Module({
   imports: [
     UsersModule,
+    PassportModule,
 
     JwtModule.register({
       secret: 'pharmaguard-super-secret-key',
@@ -19,6 +23,9 @@ import { AuthService } from './auth.service';
   ],
 
   controllers: [AuthController],
-  providers: [AuthService],
+  providers: [
+    AuthService,
+    JwtStrategy,
+  ],
 })
 export class AuthModule {}
