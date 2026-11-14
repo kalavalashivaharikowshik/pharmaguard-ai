@@ -1,27 +1,46 @@
 interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "light";
 }
 
 export default function Button({
   children,
   variant = "primary",
   className = "",
+  disabled,
   ...props
 }: ButtonProps) {
   const styles = {
     primary:
-      "bg-[#0F4C81] hover:bg-[#0D3F6A] text-white",
+      "bg-teal-700 hover:bg-teal-800 text-white shadow-md hover:shadow-xl",
+
     secondary:
-      "bg-[#2E8B57] hover:bg-[#256F46] text-white",
+      "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-xl",
+
+    light:
+      "bg-white text-teal-700 hover:bg-slate-100 shadow-md hover:shadow-xl",
   };
 
   return (
     <button
+      disabled={disabled}
       className={`
-        px-4 py-2 rounded-lg font-medium
-        transition duration-200 cursor-pointer
+        inline-flex
+        items-center
+        justify-center
+        px-5
+        py-3
+        rounded-xl
+        font-semibold
+        tracking-wide
+        transition-all
+        duration-300
+        ease-in-out
+        active:scale-95
+        disabled:opacity-60
+        disabled:cursor-not-allowed
+        disabled:hover:shadow-md
         ${styles[variant]}
         ${className}
       `}

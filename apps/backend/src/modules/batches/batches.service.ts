@@ -7,12 +7,24 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 import { CreateBatchDto } from './dto/create-batch.dto';
 import { QrService } from './qr/qr.service';
+import { AuditService } from '../audit/audit.service';
+import { BlockchainService } from '../blockchain/blockchain.service';
+
+import { NotificationsService } from '../notifications/notifications.service';
+
+import {
+  NotificationType,
+  NotificationPriority,
+} from '@prisma/client';
 
 @Injectable()
 export class BatchesService {
   constructor(
     private prisma: PrismaService,
     private qrService: QrService,
+    private blockchainService: BlockchainService,
+    private notificationsService: NotificationsService,
+    private auditService: AuditService,
   ) {}
 
   async create(
@@ -66,6 +78,30 @@ export class BatchesService {
         },
       });
 
+    // Audit Log
+    await this.auditService.log({
+      userId: user.id,
+      action: 'BATCH_CREATED',
+      entity: 'BATCH',
+      entityId: batch.id,
+      description: `Created batch ${batch.batchNumber}.`,
+      metadata: {
+        batchNumber: batch.batchNumber,
+        productName: batch.drugName,
+        manufacturerId: batch.manufacturerId,
+        quantity: batch.quantity,
+      },
+    });
+
+    // Create initial inventory
+    await this.prisma.inventory.create({
+      data: {
+        batchId: batch.id,
+        ownerUserId: user.id,
+        quantity: batch.quantity,
+      },
+    });
+
     // Generate QR
     const qr =
       await this.qrService.generateBatchQR(
@@ -73,7 +109,7 @@ export class BatchesService {
         batch.batchNumber,
       );
 
-    // Save QR identity to database
+    // Save QR identity
     const updatedBatch =
       await this.prisma.batch.update({
         where: {
@@ -84,7 +120,88 @@ export class BatchesService {
         },
       });
 
-    return updatedBatch;
+    // ----------------------------------
+    // Blockchain Registration
+    // ----------------------------------
+
+    const blockchainHash =
+      await this.blockchainService.generateBatchHash(
+        updatedBatch,
+      );
+
+    const blockchainResult =
+      await this.blockchainService.registerBatch(
+        updatedBatch.batchNumber,
+        blockchainHash,
+      );
+
+    // Audit Log
+    await this.auditService.log({
+      userId: user.id,
+      action: 'BLOCKCHAIN_REGISTERED',
+      entity: 'BATCH',
+      entityId: updatedBatch.id,
+      description: `Registered batch ${updatedBatch.batchNumber} on blockchain.`,
+    });
+
+    await this.prisma.batch.update({
+      where: {
+        id: updatedBatch.id,
+      },
+      data: {
+        blockchainHash,
+        transactionHash:
+          blockchainResult.txHash,
+      },
+    });
+
+    await this.notificationsService.createNotification({
+      userId: user.id,
+      title: 'New Batch Created',
+      message: `${updatedBatch.batchNumber} has been created successfully.`,
+      type: NotificationType.INVENTORY,
+      priority: NotificationPriority.MEDIUM,
+      actionUrl: '/inventory',
+      metadata: {
+        batchId: updatedBatch.id,
+        batchNumber:
+          updatedBatch.batchNumber,
+      },
+    });
+
+    const admins =
+      await this.prisma.user.findMany({
+        where: {
+          role: {
+            in: [
+              'SUPER_ADMIN',
+              'REGULATOR',
+            ],
+          },
+        },
+      });
+
+    for (const admin of admins) {
+      await this.notificationsService.createNotification({
+        userId: admin.id,
+        title: 'New Batch Created',
+        message: `${updatedBatch.batchNumber} was created by ${user.fullName}.`,
+        type: NotificationType.INVENTORY,
+        priority: NotificationPriority.MEDIUM,
+        actionUrl: '/inventory',
+        metadata: {
+          batchId: updatedBatch.id,
+          batchNumber:
+            updatedBatch.batchNumber,
+        },
+      });
+    }
+
+    return this.prisma.batch.findUnique({
+      where: {
+        id: updatedBatch.id,
+      },
+    });
   }
 
   findAll() {
@@ -105,7 +222,9 @@ export class BatchesService {
       },
     });
   }
-  async verify(qrCode: string) {
+  async verify(
+    qrCode: string,
+  ) {
     const batch =
       await this.prisma.batch.findFirst({
         where: {
@@ -113,6 +232,11 @@ export class BatchesService {
         },
         include: {
           manufacturer: true,
+          recalls: {
+            where: {
+              status: 'ACTIVE',
+            },
+          },
         },
       });
 
@@ -123,16 +247,62 @@ export class BatchesService {
       };
     }
 
+    // Check active recalls first
+    const activeRecall =
+      batch.recalls[0];
+
+    if (activeRecall) {
+      return {
+        authentic: true,
+        drugName: batch.drugName,
+        batchNumber: batch.batchNumber,
+        manufacturer: batch.manufacturer.name,
+        qrCode: batch.qrCode,
+        status: 'RECALLED',
+        severity: activeRecall.severity,
+        recallReason: activeRecall.reason,
+        message:
+          'DO NOT DISPENSE - Product Recalled',
+      };
+    }
+
+    // Check expiry
+    const expired =
+      batch.expiryDate <
+      new Date();
+
+    if (expired) {
+      return {
+        authentic: true,
+        drugName: batch.drugName,
+        batchNumber: batch.batchNumber,
+        manufacturer: batch.manufacturer.name,
+        qrCode: batch.qrCode,
+        status: 'EXPIRED',
+        message:
+          'EXPIRED - Do Not Dispense',
+      };
+    }
+
+    // Audit Log
+    await this.auditService.log({
+      action: 'BLOCKCHAIN_VERIFIED',
+      entity: 'BATCH',
+      entityId: batch.id,
+      description: `Verified blockchain integrity for ${batch.batchNumber}.`,
+    });
+
+    // Safe medicine
     return {
       authentic: true,
       drugName: batch.drugName,
       batchNumber: batch.batchNumber,
-      status: batch.status,
-      expiryDate: batch.expiryDate,
-      manufacturer:
-        batch.manufacturer.name,
+      manufacturer: batch.manufacturer.name,
       qrCode: batch.qrCode,
+      status: batch.status,
+      blockchainHash: batch.blockchainHash,
+      transactionHash: batch.transactionHash,
+      message: 'Medicine Verified',
     };
   }
 }
-  

@@ -9,14 +9,22 @@ export default function Input({
     <input
       className={`
         w-full
+        rounded-xl
         border
         border-slate-300
-        rounded-lg
+        bg-white
         px-4
-        py-2
+        py-3
+        text-slate-800
+        placeholder:text-slate-400
+        shadow-sm
+        transition-all
+        duration-300
         focus:outline-none
-        focus:ring-2
-        focus:ring-[#0F4C81]
+        focus:border-teal-700
+        focus:ring-4
+        focus:ring-teal-100
+        hover:border-slate-400
         ${className}
       `}
       {...props}

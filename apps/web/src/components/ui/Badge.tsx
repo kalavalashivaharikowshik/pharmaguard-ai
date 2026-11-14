@@ -6,18 +6,35 @@ interface BadgeProps {
     | "pending";
 }
 
-export default function Badge({ status }: BadgeProps) {
+export default function Badge({
+  status,
+}: BadgeProps) {
   const styles = {
-    safe: "bg-green-100 text-green-700",
-    expired: "bg-orange-100 text-orange-700",
-    recalled: "bg-red-100 text-red-700",
-    pending: "bg-yellow-100 text-yellow-700",
+    safe:
+      "bg-emerald-100 text-emerald-700",
+
+    expired:
+      "bg-orange-100 text-orange-700",
+
+    recalled:
+      "bg-red-100 text-red-700",
+
+    pending:
+      "bg-yellow-100 text-yellow-700",
   };
 
   return (
     <span
       className={`
-        px-3 py-1 rounded-full text-sm font-medium
+        inline-flex
+        items-center
+        rounded-full
+        px-3.5
+        py-1.5
+        text-xs
+        font-semibold
+        tracking-wide
+        shadow-sm
         ${styles[status]}
       `}
     >
