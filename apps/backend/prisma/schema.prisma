@@ -1,0 +1,453 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  MANUFACTURER
+  DISTRIBUTOR
+  PHARMACY
+  HOSPITAL
+  REGULATOR
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum BatchStatus {
+  ACTIVE
+  RECALLED
+  EXPIRED
+  TRANSFERRED
+  REVOKED
+}
+
+enum RecallSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RecallStatus {
+  ACTIVE
+  COMPLETED
+}
+
+enum NotificationType {
+  TRANSFER
+  INVENTORY
+  RECALL
+  REVOCATION
+  EXPIRY
+  BLOCKCHAIN
+  COMPLIANCE
+  USER
+  SECURITY
+  SYSTEM
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+}
+
+enum TransferStatus {
+  PENDING
+  COMPLETED
+  REJECTED
+}
+
+enum RecallTaskStatus {
+  PENDING
+  COMPLETED
+  OVERDUE
+}
+
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Registration {
+
+  id String @id @default(uuid())
+
+  organizationName String
+
+  contactPerson String
+
+  email String @unique
+
+  phone String?
+
+  address String?
+
+  licenseNumber String
+
+  role UserRole
+
+  status RegistrationStatus @default(PENDING)
+
+  reviewNotes String?
+
+  documents RegistrationDocument[]
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @default(now()) @updatedAt
+
+}
+
+model RegistrationDocument {
+
+  id String @id @default(uuid())
+
+  registrationId String
+
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  fileName String
+
+  fileUrl String
+
+  documentType String
+
+  uploadedAt DateTime @default(now())
+
+}
+
+model ActivationToken {
+
+  id String @id @default(uuid())
+
+  token String @unique
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  expiresAt DateTime
+
+  used Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+}
+
+model PasswordResetToken {
+
+  id String @id @default(uuid())
+
+  token String @unique
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  expiresAt DateTime
+
+  used Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+}
+
+model AuditLog {
+
+  id String @id @default(uuid())
+
+  userId String?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  action String
+
+  entity String
+
+  entityId String?
+
+  description String
+
+  metadata Json?
+
+  ipAddress String?
+
+  createdAt DateTime @default(now())
+
+}
+
+
+model Manufacturer {
+  id String @id @default(uuid())
+
+  name String
+
+  licenseNumber String @unique
+
+  email String?
+
+  phone String?
+
+  address String?
+
+  createdAt DateTime @default(now())
+
+  users   User[]
+  batches Batch[]
+}
+
+model Batch {
+  id String @id @default(uuid())
+
+  drugName String
+
+  batchNumber String @unique
+
+  manufactureDate DateTime
+
+  expiryDate DateTime
+
+  quantity Int
+
+  blockchainHash String?
+
+  transactionHash String?
+
+  qrCode String?
+
+  status BatchStatus @default(ACTIVE)
+
+  revokedAt DateTime?
+
+  revocationReason String?
+
+  manufacturerId String
+
+  manufacturer Manufacturer @relation(fields: [manufacturerId], references: [id])
+
+  recalls Recall[]
+
+  transfers BatchTransfer[]
+
+  inventories Inventory[]
+
+  scanHistory ScanHistory[]
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+}
+
+model Recall {
+  id String @id @default(uuid())
+
+  recallNumber String @unique
+
+  reason String
+
+  severity RecallSeverity
+
+  status RecallStatus @default(ACTIVE)
+
+  batchId String
+
+  batch Batch @relation(fields: [batchId], references: [id])
+
+  tasks RecallTask[]
+
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id String @id @default(uuid())
+
+  title String
+
+  message String
+
+  type NotificationType
+
+  priority NotificationPriority @default(MEDIUM)
+
+  status NotificationStatus @default(UNREAD)
+
+  isRead Boolean @default(false)
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id])
+
+  actionUrl String?
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model ScanHistory {
+
+  id String @id @default(uuid())
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  batchId String?
+
+  batch Batch? @relation(fields: [batchId], references: [id])
+
+  batchNumber String
+
+  qrCode String
+
+  verified Boolean
+
+  result String
+
+  scannedAt DateTime @default(now())
+
+}
+
+model DeviceToken {
+
+  id String @id @default(uuid())
+
+  token String @unique
+
+  platform String
+
+  deviceName String?
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+
+}
+
+model BatchTransfer {
+  id String @id @default(uuid())
+
+  batchId String
+
+  fromUserId String
+
+  toUserId String
+
+  quantity Int
+
+  status TransferStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+
+  batch Batch @relation(fields: [batchId], references: [id])
+
+  fromUser User @relation("OutgoingTransfers", fields: [fromUserId], references: [id])
+
+  toUser User @relation("IncomingTransfers", fields: [toUserId], references: [id])
+}
+
+model Inventory {
+  id String @id @default(uuid())
+
+  batchId String
+
+  ownerUserId String
+
+  quantity Int
+
+  batch Batch @relation(fields: [batchId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+}
+
+model RecallTask {
+  id String @id @default(uuid())
+
+  recallId String
+
+  userId String
+
+  status RecallTaskStatus @default(PENDING)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+
+  recall Recall @relation(fields: [recallId], references: [id])
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model User {
+  id String @id @default(uuid())
+
+  email String @unique
+
+  password String
+
+  fullName String
+
+  organizationName String?
+
+  phone String?
+
+  role UserRole
+
+  status UserStatus @default(ACTIVE)
+
+  isVerified Boolean @default(false)
+
+  manufacturerId String?
+
+  manufacturer Manufacturer? @relation(fields: [manufacturerId], references: [id])
+
+  notifications Notification[]
+
+  deviceTokens DeviceToken[]
+
+  scanHistory ScanHistory[]
+
+  outgoingTransfers BatchTransfer[] @relation("OutgoingTransfers")
+
+  incomingTransfers BatchTransfer[] @relation("IncomingTransfers")
+
+  recallTasks RecallTask[]
+
+  activationTokens ActivationToken[]
+
+  passwordResetTokens PasswordResetToken[]
+
+  auditLogs AuditLog[]
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+}
+
