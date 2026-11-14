@@ -9,13 +9,13 @@ import {
 
 export class RegisterDto {
   @IsEmail()
-  email: string;
+  email!: string;
 
   @MinLength(8)
-  password: string;
+  password!: string;
 
   @IsString()
-  fullName: string;
+  fullName!: string;
 
   @IsOptional()
   @IsString()
@@ -26,5 +26,5 @@ export class RegisterDto {
   phone?: string;
 
   @IsEnum(UserRole)
-  role: UserRole;
+  role!: UserRole;
 }

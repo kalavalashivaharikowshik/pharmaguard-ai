@@ -6,10 +6,10 @@ import {
 
 export class CreateManufacturerDto {
   @IsString()
-  name: string;
+  name!: string;
 
   @IsString()
-  licenseNumber: string;
+  licenseNumber!: string;
 
   @IsOptional()
   @IsEmail()
