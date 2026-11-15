@@ -35,7 +35,7 @@ export class EmailService {
   ) {
 
     const url =
-      `${process.env.FRONTEND_URL}/activate?token=${token}`;
+      `${(process.env.FRONTEND_URL || process.env.CORS_ORIGINS?.split(',')[0] || 'http://localhost:5173').trim().replace(/\/$/, '')}/activate?token=${token}`;
 
     await this.send({
 
@@ -115,7 +115,7 @@ export class EmailService {
   ) {
 
     const url =
-      `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+      `${(process.env.FRONTEND_URL || process.env.CORS_ORIGINS?.split(',')[0] || 'http://localhost:5173').trim().replace(/\/$/, '')}/reset-password?token=${token}`;
 
     await this.send({
 
@@ -279,4 +279,21 @@ export class EmailService {
 
   }
 
+
+  async sendRejectionEmail(email: string, organizationName: string, reason: string) {
+    const safe = (v: string) =>
+      v.replace(/[<>&"]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[ch] as string);
+    await this.send({
+      to: email,
+      subject: 'Your PharmaGuard AI registration',
+      html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:30px;border:1px solid #E5E7EB;border-radius:10px;">
+        <h2 style="color:#0F4C81;">PharmaGuard AI</h2>
+        <p>Thank you for registering <b>${safe(organizationName)}</b>.</p>
+        <p>Unfortunately we could not approve your registration.</p>
+        <p><b>Reason:</b> ${safe(reason)}</p>
+        <p>You can correct the details and register again.</p>
+      </div>`,
+    });
+  }
 }

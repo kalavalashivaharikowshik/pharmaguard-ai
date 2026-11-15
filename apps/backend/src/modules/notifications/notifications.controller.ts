@@ -1,141 +1,43 @@
-import {
-  Controller,
-  Get,
-  Patch,
-  Delete,
-  Param,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Delete, Get, Param, Patch, UseGuards } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-
 import { NotificationsService } from './notifications.service';
 
+// Fixed paths ("my", "unread-count", "read-all") must be declared before the
+// ":id" routes, otherwise ":id" captures them.
 @Controller('notifications')
+@UseGuards(JwtAuthGuard)
 export class NotificationsController {
-  constructor(
-    private notificationsService: NotificationsService,
-  ) {}
+  constructor(private notificationsService: NotificationsService) {}
 
   @Get('my')
-  @UseGuards(
-    JwtAuthGuard,
-  )
-  getMyNotifications(
-    @CurrentUser()
-    user: any,
-  ) {
-    return this.notificationsService
-      .getUserNotifications(
-        user.userId,
-      );
-  }
-
-  @Get(':id')
-  @UseGuards(
-    JwtAuthGuard,
-  )
-  findOne(
-
-    @Param('id')
-    id: string,
-
-    @CurrentUser()
-    user: any,
-
-  ) {
-
-    return this.notificationsService.findOne(
-
-      id,
-
-      user.userId,
-
-    );
-
+  getMyNotifications(@CurrentUser() user: any) {
+    return this.notificationsService.getUserNotifications(user.userId);
   }
 
   @Get('unread-count')
-  @UseGuards(
-    JwtAuthGuard,
-  )
-  getUnreadCount(
-    @CurrentUser()
-    user: any,
-  ) {
-
-    return this.notificationsService.getUnreadCount(
-      user.userId,
-    );
-
-  }
-
-  @Patch(':id/read')
-  @UseGuards(
-    JwtAuthGuard,
-  )
-  markAsRead(
-
-    @Param('id')
-    id: string,
-
-    @CurrentUser()
-    user: any,
-
-  ) {
-
-    return this.notificationsService.markAsRead(
-
-      id,
-
-      user.userId,
-
-    );
-
+  getUnreadCount(@CurrentUser() user: any) {
+    return this.notificationsService.getUnreadCount(user.userId);
   }
 
   @Patch('read-all')
-  @UseGuards(
-    JwtAuthGuard,
-  )
-  markAllAsRead(
+  markAllAsRead(@CurrentUser() user: any) {
+    return this.notificationsService.markAllAsRead(user.userId);
+  }
 
-    @CurrentUser()
-    user: any,
+  @Get(':id')
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.notificationsService.findOne(id, user.userId);
+  }
 
-  ) {
-
-    return this.notificationsService.markAllAsRead(
-
-      user.userId,
-
-    );
-
+  @Patch(':id/read')
+  markAsRead(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.notificationsService.markAsRead(id, user.userId);
   }
 
   @Delete(':id')
-  @UseGuards(
-    JwtAuthGuard,
-  )
-  deleteNotification(
-
-    @Param('id')
-    id: string,
-
-    @CurrentUser()
-    user: any,
-
-  ) {
-
-    return this.notificationsService.deleteNotification(
-
-      id,
-
-      user.userId,
-
-    );
-
+  deleteNotification(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.notificationsService.deleteNotification(id, user.userId);
   }
 }

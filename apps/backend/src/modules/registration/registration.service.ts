@@ -199,11 +199,15 @@ export class RegistrationService {
 
     });
 
+    const emailEnabled = !!process.env.SMTP_HOST;
     return {
-
-      message:
-        'Registration approved. Activation email sent.',
-
+      message: emailEnabled
+        ? 'Registration approved. Activation email sent.'
+        : 'Registration approved. Email is not configured, so share the activation link with the user.',
+      emailSent: emailEnabled,
+      // Only super admins can call this endpoint; without SMTP the admin
+      // shares this one-time link (valid 24h) so the user can set a password.
+      activationUrl: emailEnabled ? undefined : `${(process.env.FRONTEND_URL || process.env.CORS_ORIGINS?.split(',')[0] || 'http://localhost:5173').trim().replace(/\/$/, '')}/activate?token=${token}`,
     };
 
   }
@@ -281,6 +285,12 @@ export class RegistrationService {
 
     });
 
+    await this.emailService.sendRejectionEmail(
+      rejectedRegistration.email,
+      rejectedRegistration.organizationName,
+      reason,
+    );
+
     return rejectedRegistration;
 
   }
@@ -300,12 +310,18 @@ export class RegistrationService {
 
       });
 
-    if (exists) {
-
+    if (exists && exists.status !== RegistrationStatus.REJECTED) {
       throw new BadRequestException(
-        'Registration already exists.',
+        exists.status === RegistrationStatus.PENDING
+          ? 'A registration with this email is already waiting for approval.'
+          : 'An account with this email already exists. Please sign in.',
       );
+    }
 
+    if (exists) {
+      // A rejected applicant may correct their details and apply again.
+      await this.prisma.registrationDocument.deleteMany({ where: { registrationId: exists.id } });
+      await this.prisma.registration.delete({ where: { id: exists.id } });
     }
 
     const registration =
@@ -341,6 +357,8 @@ export class RegistrationService {
     },
 
     });
+
+    await this.notifyAdminsOfRegistration(registration);
 
     return registration;
   }
@@ -426,4 +444,33 @@ export class RegistrationService {
 
   }
 
+
+  /** Tells every active super admin that a new organisation is waiting for approval. */
+  private async notifyAdminsOfRegistration(registration: {
+    id: string;
+    organizationName: string;
+    role: string;
+    email: string;
+  }) {
+    const admins = await this.prisma.user.findMany({
+      where: { role: UserRole.SUPER_ADMIN, status: UserStatus.ACTIVE },
+      select: { id: true },
+    });
+    const role = registration.role.replace(/_/g, ' ').toLowerCase();
+    for (const admin of admins) {
+      try {
+        await this.notificationsService.createNotification({
+          userId: admin.id,
+          title: 'New registration awaiting approval',
+          message: `${registration.organizationName} (${role}, ${registration.email}) registered and is waiting for your review.`,
+          type: NotificationType.USER,
+          priority: 'HIGH',
+          actionUrl: '/registration',
+          metadata: { registrationId: registration.id },
+        });
+      } catch {
+        // A failed notification must never block the registration itself.
+      }
+    }
+  }
 }
