@@ -51,6 +51,7 @@
     "ethers": "^5.8.0",
     "exceljs": "^4.4.0",
     "firebase-admin": "^14.2.0",
+    "hardhat": "2.22.17",
     "helmet": "^8.3.0",
     "ioredis": "^6.0.0",
     "lucide-react": "^1.21.0",
