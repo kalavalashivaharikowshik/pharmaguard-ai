@@ -1,87 +1,35 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-} from 'react-native';
-
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
-
+import { View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import { useNavigation, useRoute } from '@react-navigation/native';
 
-import {
-  useRoute,
-} from '@react-navigation/native';
-
-import { COLORS } from '../../utils/theme';
+import { Badge, Button, Card, Header, Screen, T } from '../../ui/components';
+import { brand, space } from '../../ui/theme';
 
 export default function QRCodeScreen() {
-
-  const route = useRoute<any>();
-
-  const { batch } = route.params;
-
+  const navigation = useNavigation<any>();
+  const { params } = useRoute<any>();
+  const batch = params.batch;
   return (
-
-    <SafeAreaView
-      style={styles.container}
-    >
-
-      <Text
-        style={styles.title}
-      >
-        {batch.drugName}
-      </Text>
-
-      <Text
-        style={styles.subtitle}
-      >
-        {batch.batchNumber}
-      </Text>
-
-      <QRCode
-        value={batch.qrCode ?? batch.batchNumber}
-        size={260}
-      />
-
-      <Text
-        style={styles.footer}
-      >
-        Scan to verify this batch
-      </Text>
-
-    </SafeAreaView>
-
+    <Screen>
+      <Header title="Batch QR code" onBack={() => navigation.goBack()} />
+      <Card style={{ alignItems: 'center', paddingVertical: space.xxl }}>
+        <T variant="h2" center>
+          {batch.drugName}
+        </T>
+        <T muted center style={{ marginTop: 4, marginBottom: space.xl }}>
+          {batch.batchNumber}
+        </T>
+        <View style={{ padding: 16, backgroundColor: '#FFF', borderRadius: 16 }}>
+          <QRCode value={batch.qrCode ?? `PG-${batch.batchNumber}`} size={220} color={brand.blueDark} backgroundColor="#FFFFFF" />
+        </View>
+        <View style={{ marginTop: space.xl }}>
+          <Badge status={batch.status} />
+        </View>
+        <T variant="small" muted center style={{ marginTop: space.lg, maxWidth: 260 }}>
+          Scan with PharmaGuard to check authenticity, recall and expiry status.
+        </T>
+      </Card>
+      <Button title="Done" onPress={() => navigation.goBack()} style={{ marginTop: space.lg }} />
+    </Screen>
   );
-
 }
-
-const styles = StyleSheet.create({
-
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-  },
-
-  subtitle: {
-    color: COLORS.subtitle,
-    marginTop: 8,
-    marginBottom: 35,
-  },
-
-  footer: {
-    marginTop: 30,
-    fontWeight: '600',
-    color: COLORS.subtitle,
-  },
-
-});

@@ -1,608 +1,135 @@
-import {
-  ScrollView,
-  View,
-  Text,
-  RefreshControl,
-  StyleSheet,
-} from 'react-native';
-
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
-
-import {
-  useEffect,
-  useState,
-  useCallback,
-  useMemo,
-} from 'react';
-
-import {
-  MaterialIcons,
-} from '@expo/vector-icons';
-
-import {
-  useNavigation,
-  useRoute,
-} from '@react-navigation/native';
-
-import Toast from 'react-native-toast-message';
-
-import SeverityBadge from '../../components/recalls/SeverityBadge';
-import RecallStatusBadge from '../../components/recalls/RecallStatusBadge';
+import { useCallback, useEffect, useState } from 'react';
+import { View } from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 
 import { recallService } from '../../services/recallService';
-
-import LoadingScreen from '../../components/common/LoadingScreen';
-import PageHeader from '../../components/common/PageHeader';
-
-import { COLORS } from '../../utils/theme';
-
-import type { Recall } from '../../types/recall';
+import { aiService } from '../../services/aiService';
+import { Badge, Card, GradientCard, Header, Icon, KeyValue, ListRow, ProgressBar, Screen, Skeleton, T } from '../../ui/components';
+import { space, useTheme } from '../../ui/theme';
+import { countdown, fmtDate, fmtDateTime, ROLE_LABEL } from '../../ui/format';
 
 export default function RecallDetailScreen() {
+  const navigation = useNavigation<any>();
+  const { params } = useRoute<any>();
+  const { c } = useTheme();
+  const [recall, setRecall] = useState<any>(null);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [impact, setImpact] = useState<Awaited<ReturnType<typeof aiService.recallImpact>> | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const route = useRoute<any>();
-  const navigation =
-  useNavigation<any>();
-
-  const { id } = route.params;
-
-  const [
-    recall,
-    setRecall,
-  ] = useState<Recall | null>(null);
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  const [
-    refreshing,
-    setRefreshing,
-  ] = useState(false);
-
-  const loadRecall = useCallback(async () => {
-
-    try {
-
-      const data =
-        await recallService.getRecall(id);
-
-      setRecall(data);
-
-    }
-
-    catch {
-
-      Toast.show({
-
-        type: 'error',
-
-        text1: 'Unable to load recall',
-
-      });
-
-    }
-
-    finally {
-
-      setLoading(false);
-
-    }
-
-  }, [id]);
+  const load = useCallback(async () => {
+    const [r] = await Promise.all([
+      recallService.getRecall(params.id),
+      aiService.recallSummary(params.id).then((s) => setSummary(s.summary)).catch(() => undefined),
+      aiService.recallImpact(params.id).then(setImpact).catch(() => undefined),
+    ]);
+    setRecall(r);
+  }, [params.id]);
 
   useEffect(() => {
-
-    loadRecall();
-
-  }, [loadRecall]);
-
-  const refresh = useCallback(async () => {
-
-    setRefreshing(true);
-
-    await loadRecall();
-
-    setRefreshing(false);
-
-  }, [loadRecall]);
-
-  const banner = useMemo(() => {
+    load();
+  }, [load]);
 
   if (!recall) {
-
-    return {
-
-      color: COLORS.success,
-
-      title: '',
-
-      message: '',
-
-    };
-
-  }
-
-  return recall.status === 'ACTIVE'
-
-    ? {
-
-        color: COLORS.danger,
-
-        title: '🚨 ACTIVE RECALL',
-
-        message:
-          'Immediate action is required for this recalled batch.',
-
-      }
-
-    : {
-
-        color: COLORS.success,
-
-        title: '✅ RECALL COMPLETED',
-
-        message:
-          'This recall has been completed successfully.',
-
-      };
-
-}, [recall]);
-
-  if (loading) {
-
     return (
-
-      <LoadingScreen
-        title="Loading Recall"
-        subtitle="Retrieving recall information."
-      />
-
+      <Screen>
+        <Header title="Recall" onBack={() => navigation.goBack()} />
+        <Skeleton height={170} />
+        <Skeleton height={140} style={{ marginTop: space.lg }} />
+      </Screen>
     );
-
   }
 
-  if (!recall) {
-
-    return null;
-
-  }
+  const active = recall.status === 'ACTIVE';
 
   return (
+    <Screen
+      refreshing={refreshing}
+      onRefresh={async () => {
+        setRefreshing(true);
+        await load();
+        setRefreshing(false);
+      }}
+    >
+      <Header title={recall.recallNumber} onBack={() => navigation.goBack()} right={<Badge status={active ? recall.severity : 'COMPLETED'} />} />
 
-    <SafeAreaView style={styles.container}>
-
-      <ScrollView
-      showsVerticalScrollIndicator={false}
-
-        refreshControl={
-
-          <RefreshControl
-
-            refreshing={refreshing}
-
-            onRefresh={refresh}
-
-          />
-
-        }
-
-        contentContainerStyle={styles.content}
-
-      >
-
-        <PageHeader
-
-          title="Recall Details"
-
-          subtitle="View complete recall information"
-        onBack={() => navigation.goBack()}
-
-        />
-
-        <View style={styles.iconContainer}>
-
-          <View style={styles.iconCircle}>
-
-            <MaterialIcons
-
-              name="health-and-safety"
-
-              size={46}
-
-              color={COLORS.danger}
-
-            />
-
+      <GradientCard colors={active ? ['#7F1D1D', '#B91C1C', '#DC2626'] : undefined}>
+        <T variant="tiny" color="rgba(255,255,255,0.8)">
+          {active ? `${recall.severity} RECALL · ACTIVE` : 'RECALL COMPLETED'}
+        </T>
+        <T variant="h2" color="#FFF" style={{ marginTop: 6 }}>
+          {recall.batch?.drugName}
+        </T>
+        <T color="rgba(255,255,255,0.85)">{recall.batch?.batchNumber}</T>
+        <T color="#FFF" style={{ marginTop: space.md }}>
+          {recall.reason}
+        </T>
+        {active && impact?.dueDate && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: space.md }}>
+            <Icon name="timer-outline" size={18} color="#FFF" />
+            <T variant="bodyStrong" color="#FFF">
+              {countdown(impact.dueDate)}
+            </T>
           </View>
+        )}
+      </GradientCard>
 
+      <Card style={{ marginTop: space.lg }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <Icon name="creation" color={c.primary} />
+          <T variant="title">AI summary</T>
         </View>
+        {summary ? <T style={{ lineHeight: 22 }}>{summary}</T> : <Skeleton height={60} />}
+      </Card>
 
-        <View
-
-          style={[
-
-            styles.banner,
-
-            {
-
-              backgroundColor: banner.color,
-
-            },
-
-          ]}
-
-        >
-
-          <Text style={styles.bannerTitle}>
-
-            {banner.title}
-
-          </Text>
-
-          <Text style={styles.bannerMessage}>
-
-            {banner.message}
-
-          </Text>
-
-        </View>
-
-        <View style={styles.card}>
-
-          <Text style={styles.title}>
-
-            {recall.batch.drugName}
-
-          </Text>
-
-          <Text style={styles.subtitle}>
-
-            Medicine Information
-
-          </Text>
-
-          <View style={styles.row}>
-
-            <View style={styles.column}>
-
-              <Text style={styles.infoLabel}>
-
-                Batch Number
-
-              </Text>
-
-              <Text style={styles.infoValue}>
-
-                {recall.batch.batchNumber}
-
-              </Text>
-
+      {impact && (
+        <Card style={{ marginTop: space.md }}>
+          <T variant="title">Progress</T>
+          <View style={{ flexDirection: 'row', marginVertical: space.md }}>
+            {[
+              ['Organisations', impact.affectedOrganizations],
+              ['Units', impact.affectedUnits],
+              ['Overdue', impact.tasks.overdue],
+            ].map(([l, v]) => (
+              <View key={l as string} style={{ flex: 1 }}>
+                <T variant="h2">{v as number}</T>
+                <T variant="tiny" muted>
+                  {(l as string).toUpperCase()}
+                </T>
+              </View>
+            ))}
+          </View>
+          <ProgressBar value={impact.progress} tone={impact.progress === 100 ? 'success' : 'warning'} />
+          <T variant="small" muted style={{ marginTop: 6 }}>
+            {impact.tasks.completed} of {impact.tasks.total} holders have quarantined their stock
+          </T>
+          {impact.locations.length > 0 && (
+            <View style={{ marginTop: space.md }}>
+              {impact.locations.map((l, i) => (
+                <ListRow
+                  key={l.userId}
+                  icon={l.role === 'PHARMACY' ? 'storefront-outline' : l.role === 'HOSPITAL' ? 'hospital-building' : l.role === 'DISTRIBUTOR' ? 'truck-outline' : 'factory'}
+                  iconTone={l.taskStatus === 'COMPLETED' ? 'success' : l.taskStatus === 'OVERDUE' ? 'danger' : 'warning'}
+                  title={l.organization ?? 'Organisation'}
+                  subtitle={`${ROLE_LABEL[l.role ?? ''] ?? ''}${l.city ? ` · ${l.city}` : ''} · ${l.quantity} units`}
+                  right={<Badge status={l.taskStatus === 'NO_TASK' ? 'PENDING' : l.taskStatus} size="sm" />}
+                  last={i === impact.locations.length - 1}
+                />
+              ))}
             </View>
-
-            <View style={styles.column}>
-
-              <Text style={styles.infoLabel}>
-
-                Manufacturer
-
-              </Text>
-
-              <Text style={styles.infoValue}>
-
-                {recall.batch.manufacturer?.name ?? 'N/A'}
-
-              </Text>
-
-            </View>
-
-          </View>
-
-          <View style={styles.row}>
-
-            <View style={styles.column}>
-
-              <Text style={styles.infoLabel}>
-
-                Batch Status
-
-              </Text>
-
-              <Text style={styles.infoValue}>
-
-                {recall.batch.status}
-
-              </Text>
-
-            </View>
-
-            <View style={styles.column}>
-
-              <Text style={styles.infoLabel}>
-
-                Expiry
-
-              </Text>
-
-              <Text style={styles.infoValue}>
-
-                {new Date(
-
-                  recall.batch.expiryDate,
-
-                ).toLocaleDateString()}
-
-              </Text>
-
-            </View>
-
-          </View>
-
-        </View>
-
-                <View style={styles.card}>
-
-          <Text style={styles.sectionTitle}>
-            Recall Information
-          </Text>
-
-          <Text style={styles.infoLabel}>
-            Recall Number
-          </Text>
-
-          <Text style={styles.infoValue}>
-            {recall.recallNumber}
-          </Text>
-
-          <Text style={[styles.infoLabel, styles.label]}>
-            Reason
-          </Text>
-
-          <Text style={styles.infoValue}>
-            {recall.reason}
-          </Text>
-
-          <Text style={[styles.infoLabel, styles.label]}>
-            Recall Date
-          </Text>
-
-          <Text style={styles.infoValue}>
-            {new Date(
-              recall.createdAt,
-            ).toLocaleDateString()}
-          </Text>
-
-          <View style={styles.badgeRow}>
-
-            <SeverityBadge
-              severity={recall.severity}
-            />
-
-            <RecallStatusBadge
-              status={recall.status}
-            />
-
-          </View>
-
-        </View>
-
-        <View style={styles.card}>
-
-          <Text style={styles.sectionTitle}>
-            AI Impact Summary
-          </Text>
-
-          <View style={styles.summaryBox}>
-
-            <Text style={styles.summaryText}>
-              {recall.summary ??
-                'No AI-generated impact summary is available for this recall.'}
-            </Text>
-
-          </View>
-
-        </View>
-
-        <View style={styles.card}>
-
-          <Text style={styles.sectionTitle}>
-            Recommended Action
-          </Text>
-
-          <View style={styles.recommendationBox}>
-
-            <Text style={styles.recommendationText}>
-
-              • Stop distributing this batch immediately.
-
-              {'\n\n'}
-
-              • Isolate remaining inventory.
-
-              {'\n\n'}
-
-              • Notify affected organizations.
-
-              {'\n\n'}
-
-              • Follow the official recall procedure.
-
-            </Text>
-
-          </View>
-
-        </View>
-
-        <View style={styles.card}>
-
-          <Text style={styles.sectionTitle}>
-            Recall Timeline
-          </Text>
-
-          <View style={styles.timelineContainer}>
-
-            <Text>
-              📅 Recall Created
-            </Text>
-
-            <Text style={styles.timelineSpacing}>
-              {new Date(
-                recall.createdAt,
-              ).toLocaleDateString()}
-            </Text>
-
-            <Text>
-              ⚠ Organizations Notified
-            </Text>
-
-            <Text style={styles.timelineSpacing}>
-              Completed
-            </Text>
-
-            <Text>
-              📦 Inventory Quarantined
-            </Text>
-
-          </View>
-
-        </View>
-
-      </ScrollView>
-
-    </SafeAreaView>
-
+          )}
+        </Card>
+      )}
+
+      <Card style={{ marginTop: space.md }}>
+        <T variant="title" style={{ marginBottom: 4 }}>
+          Details
+        </T>
+        <KeyValue label="Manufacturer" value={recall.batch?.manufacturer?.name} />
+        <KeyValue label="Batch expiry" value={fmtDate(recall.batch?.expiryDate)} />
+        <KeyValue label="Started" value={fmtDateTime(recall.createdAt)} />
+        {recall.completedAt ? <KeyValue label="Completed" value={fmtDateTime(recall.completedAt)} /> : null}
+      </Card>
+    </Screen>
   );
-
 }
-
-const styles = StyleSheet.create({
-
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-
-  content: {
-    padding: 20,
-    paddingBottom: 120,
-  },
-
-  iconContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-
-  iconCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: '#FEF2F2',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  banner: {
-    padding: 22,
-    borderRadius: 18,
-    marginBottom: 20,
-  },
-
-  bannerTitle: {
-    color: 'white',
-    fontSize: 26,
-    fontWeight: '700',
-  },
-
-  bannerMessage: {
-    color: 'white',
-    marginTop: 8,
-  },
-
-  card: {
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 18,
-    marginBottom: 20,
-    elevation: 3,
-  },
-
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 15,
-  },
-
-  subtitle: {
-    color: COLORS.subtitle,
-    marginBottom: 18,
-  },
-
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-
-  label: {
-    marginTop: 15,
-  },
-
-  infoLabel: {
-    color: COLORS.subtitle,
-    fontSize: 13,
-  },
-
-  infoValue: {
-    fontWeight: '700',
-    marginTop: 4,
-  },
-
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 18,
-  },
-
-  column: {
-    flex: 1,
-  },
-
-  badgeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 20,
-  },
-
-  summaryBox: {
-    backgroundColor: '#F8FAFC',
-    padding: 14,
-    borderRadius: 12,
-    marginTop: 15,
-  },
-
-  summaryText: {
-    lineHeight: 24,
-  },
-
-  recommendationBox: {
-    backgroundColor: '#FFF7ED',
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 15,
-  },
-
-  recommendationText: {
-    lineHeight: 26,
-  },
-
-  timelineContainer: {
-    marginTop: 15,
-  },
-
-  timelineSpacing: {
-    marginBottom: 14,
-  },
-
-});

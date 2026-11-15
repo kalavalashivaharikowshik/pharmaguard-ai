@@ -1,501 +1,102 @@
-import {
-  useState,
-  useCallback,
-  useMemo,
-} from 'react';
+import { useState } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import CheckBox from 'expo-checkbox';
-
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  ScrollView,
-} from 'react-native';
-
-import Toast from 'react-native-toast-message';
-
-import {
-  MaterialIcons,
-} from '@expo/vector-icons';
-
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
-
-import { COLORS } from '../../utils/theme';
+import { AuthBackground, LogoMark, Wordmark } from './AuthBrand';
+import { Button, Field, Icon, T } from '../../ui/components';
+import { brand, radius, shadow, space, useTheme } from '../../ui/theme';
 
 interface Props {
-  onLogin: (
-    email: string,
-    password: string,
-    remember: boolean,
-  ) => void;
-
-  onForgotPassword: () => void;
-
-  loading: boolean;
+  onLogin: (email: string, password: string, remember: boolean) => Promise<void> | void;
+  loading?: boolean;
+  onForgotPassword(): void;
 }
 
-export default function LoginScreen({
-  onLogin,
-  onForgotPassword,
-  loading,
-}: Props) {
+export default function LoginScreen({ onLogin, loading, onForgotPassword }: Props) {
+  const { c } = useTheme();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true);
+  const [show, setShow] = useState(false);
+  const [error, setError] = useState('');
 
-  const [
-    email,
-    setEmail,
-  ] = useState('');
-
-  const [
-    password,
-    setPassword,
-  ] = useState('');
-
-  const [
-    showPassword,
-    setShowPassword,
-  ] = useState(false);
-
-  const [
-    remember,
-    setRemember,
-  ] = useState(true);
-
-  const isDisabled = useMemo(() => {
-
-    return (
-
-      loading ||
-
-      !email ||
-
-      !password
-
-    );
-
-  }, [
-
-    loading,
-
-    email,
-
-    password,
-
-  ]);
-
-  const submit = useCallback(() => {
-
-    if (
-      !email ||
-      !password
-    ) {
-
-      Toast.show({
-
-        type: 'error',
-
-        text1: 'Missing Information',
-
-        text2: 'Enter email and password.',
-
-      });
-
-      return;
-
-    }
-
-    onLogin(
-      email.trim(),
-      password,
-      remember,
-    );
-
-  }, [
-    email,
-    password,
-    remember,
-    onLogin,
-  ]);
+  const submit = async () => {
+    setError('');
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Enter a valid email address');
+    if (!password) return setError('Enter your password');
+    await onLogin(email.trim().toLowerCase(), password, remember);
+  };
 
   return (
-
-    <SafeAreaView
-      style={{
-        flex: 1,
-        backgroundColor: COLORS.background,
-      }}
-    >
-
-      <KeyboardAvoidingView
-        behavior={
-          Platform.OS === 'ios'
-            ? 'padding'
-            : undefined
-        }
-        style={styles.container}
-      >
-
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-        >
-
-          <View style={styles.card}>
-
-            <View style={styles.logoContainer}>
-
-              <View style={styles.iconCircle}>
-
-                <MaterialIcons
-                  name="local-pharmacy"
-                  size={46}
-                  color={COLORS.primary}
-                />
-
-              </View>
-
+    <AuthBackground>
+      <SafeAreaView style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: space.xl }} keyboardShouldPersistTaps="handled">
+            <View style={{ alignItems: 'center', gap: space.lg, marginBottom: space.xxl }}>
+              <LogoMark size={76} />
+              <Wordmark />
             </View>
 
-            <Text style={styles.logo}>
-              PharmaGuard AI
-            </Text>
-
-            <Text style={styles.subtitle}>
-              Pharmaceutical Safety Platform
-            </Text>
-
-            <TextInput
-              placeholder="Email"
-              style={styles.input}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              value={email}
-              onChangeText={setEmail}
-            />
-
-            <View style={styles.passwordBox}>
-
-              <TextInput
-                placeholder="Password"
-                secureTextEntry={!showPassword}
-                style={styles.passwordInput}
+            <View style={[styles.card, { backgroundColor: c.surface }, shadow(c, 2)]}>
+              <T variant="h2">Welcome back</T>
+              <T muted style={{ marginTop: 4, marginBottom: space.xl }}>
+                Sign in to your organisation account
+              </T>
+              <Field label="Email" icon="email-outline" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="you@organisation.com" />
+              <Field
+                label="Password"
+                icon="lock-outline"
                 value={password}
                 onChangeText={setPassword}
-              />
-
-              <TouchableOpacity
-                onPress={() =>
-                  setShowPassword(!showPassword)
+                secureTextEntry={!show}
+                autoComplete="password"
+                placeholder="Your password"
+                onSubmitEditing={submit}
+                right={
+                  <Pressable onPress={() => setShow((s) => !s)} hitSlop={10} accessibilityLabel={show ? 'Hide password' : 'Show password'}>
+                    <Icon name={show ? 'eye-off-outline' : 'eye-outline'} size={20} color={c.textMuted} />
+                  </Pressable>
                 }
-              >
-
-                <MaterialIcons
-                  name={
-                    showPassword
-                      ? 'visibility'
-                      : 'visibility-off'
-                  }
-                  size={24}
-                  color="#888"
-                />
-
-              </TouchableOpacity>
-
-            </View>
-
-            <View style={styles.rememberRow}>
-
-              <CheckBox
-                value={remember}
-                onValueChange={setRemember}
               />
-
-              <Text style={styles.rememberText}>
-                Remember Me
-              </Text>
-
+              <View style={styles.row}>
+                <Pressable onPress={() => setRemember((r) => !r)} style={styles.remember} accessibilityRole="checkbox" accessibilityState={{ checked: remember }}>
+                  <Icon name={remember ? 'checkbox-marked' : 'checkbox-blank-outline'} size={22} color={remember ? brand.blue : c.textSoft} />
+                  <T variant="small">Remember me</T>
+                </Pressable>
+                <Pressable onPress={onForgotPassword} hitSlop={8}>
+                  <T variant="small" color={c.primary} style={{ fontWeight: '700' }}>
+                    Forgot password?
+                  </T>
+                </Pressable>
+              </View>
+              {error ? (
+                <View style={[styles.error, { backgroundColor: c.dangerSoft }]}>
+                  <Icon name="alert-circle-outline" size={18} color={c.danger} />
+                  <T variant="small" color={c.danger}>
+                    {error}
+                  </T>
+                </View>
+              ) : null}
+              <Button title="Sign in" icon="login" loading={loading} onPress={submit} style={{ marginTop: space.lg }} />
             </View>
-                        <TouchableOpacity
-              style={[
-                styles.button,
-                {
-                  opacity: isDisabled ? 0.5 : 1,
-                },
-              ]}
-              onPress={submit}
-              disabled={isDisabled}
-            >
 
-              {
-
-                loading
-
-                  ? (
-
-                    <ActivityIndicator
-                      color="white"
-                    />
-
-                  )
-
-                  : (
-
-                    <Text
-                      style={styles.buttonText}
-                    >
-                      Login
-                    </Text>
-
-                  )
-
-              }
-
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.forgotButton}
-              onPress={onForgotPassword}
-            >
-
-              <Text
-                style={styles.forgotText}
-              >
-                Forgot Password?
-              </Text>
-
-            </TouchableOpacity>
-
-            <Text
-              style={styles.needAccount}
-            >
-              Need an account?
-            </Text>
-
-            <Text
-              style={styles.contactAdmin}
-            >
-              Contact your system administrator.
-            </Text>
-
-          </View>
-
-        </ScrollView>
-
-      </KeyboardAvoidingView>
-
-      <Toast />
-
-    </SafeAreaView>
-
+            <View style={styles.trust}>
+              <Icon name="lock-check" size={16} color="rgba(255,255,255,0.75)" />
+              <T variant="small" color="rgba(255,255,255,0.75)">
+                Secured with JWT · blockchain-verified data
+              </T>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </AuthBackground>
   );
-
 }
 
 const styles = StyleSheet.create({
-
-  container: {
-
-    flex: 1,
-
-    justifyContent: 'center',
-
-    backgroundColor: COLORS.background,
-
-    padding: 24,
-
-  },
-
-  scrollContent: {
-
-    flexGrow: 1,
-
-    justifyContent: 'center',
-
-  },
-
-  card: {
-
-    backgroundColor: COLORS.white,
-
-    padding: 24,
-
-    borderRadius: 20,
-
-    elevation: 5,
-
-  },
-
-  logoContainer: {
-
-    alignItems: 'center',
-
-    marginBottom: 20,
-
-  },
-
-  iconCircle: {
-
-    width: 90,
-
-    height: 90,
-
-    borderRadius: 45,
-
-    backgroundColor: '#ECFDF5',
-
-    justifyContent: 'center',
-
-    alignItems: 'center',
-
-  },
-
-  logo: {
-
-    fontSize: 30,
-
-    fontWeight: '700',
-
-    color: COLORS.primary,
-
-    textAlign: 'center',
-
-  },
-
-  subtitle: {
-
-    color: COLORS.subtitle,
-
-    marginBottom: 25,
-
-    marginTop: 5,
-
-    textAlign: 'center',
-
-  },
-
-  input: {
-
-    borderWidth: 1,
-
-    borderColor: COLORS.border,
-
-    borderRadius: 12,
-
-    padding: 15,
-
-    marginBottom: 15,
-
-  },
-
-  passwordBox: {
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    borderWidth: 1,
-
-    borderColor: COLORS.border,
-
-    borderRadius: 12,
-
-    paddingHorizontal: 15,
-
-    marginBottom: 15,
-
-  },
-
-  passwordInput: {
-
-    flex: 1,
-
-    paddingVertical: 15,
-
-  },
-
-  rememberRow: {
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    marginBottom: 20,
-
-  },
-
-  rememberText: {
-
-    marginLeft: 10,
-
-    color: COLORS.subtitle,
-
-  },
-
-  button: {
-
-    backgroundColor: COLORS.primary,
-
-    padding: 16,
-
-    borderRadius: 14,
-
-    alignItems: 'center',
-
-  },
-
-  buttonText: {
-
-    color: 'white',
-
-    fontWeight: '700',
-
-    fontSize: 16,
-
-  },
-
-  forgotButton: {
-
-    marginTop: 18,
-
-    alignItems: 'center',
-
-  },
-
-  forgotText: {
-
-    color: COLORS.secondary,
-
-    fontWeight: '600',
-
-  },
-
-  needAccount: {
-
-    marginTop: 40,
-
-    textAlign: 'center',
-
-    color: COLORS.subtitle,
-
-  },
-
-  contactAdmin: {
-
-    marginTop: 6,
-
-    textAlign: 'center',
-
-    color: COLORS.primary,
-
-    fontWeight: '600',
-
-  },
-
+  card: { borderRadius: radius.xl, padding: space.xl },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: -4 },
+  remember: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  error: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: space.md, borderRadius: radius.md, marginTop: space.lg },
+  trust: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: space.xl },
 });

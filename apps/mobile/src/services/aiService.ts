@@ -27,8 +27,24 @@ export const aiService = {
       id: string;
       status: string;
       dueDate?: string | null;
-      recall: { recallNumber: string; severity: string; batch: { batchNumber: string; drugName: string } };
+      recallId: string;
+      recall: { id: string; recallNumber: string; severity: string; reason: string; batch: { batchNumber: string; drugName: string } };
     }[];
+  },
+  async recallSummary(recallId: string) {
+    const res = await api.get(`/ai/recall/${recallId}/summary`);
+    return res.data as { summary: string };
+  },
+  async recallImpact(recallId: string) {
+    const res = await api.get(`/ai/recall/${recallId}/impact`);
+    return res.data as {
+      affectedOrganizations: number;
+      affectedUnits: number;
+      progress: number;
+      dueDate?: string | null;
+      tasks: { total: number; completed: number; overdue: number };
+      locations: { userId: string; organization?: string; role?: string; city?: string | null; quantity: number; taskStatus: string }[];
+    };
   },
   async completeTask(taskId: string, notes?: string) {
     const res = await api.patch(`/ai/tasks/${taskId}/complete`, { notes });

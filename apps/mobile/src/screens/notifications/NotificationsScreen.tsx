@@ -1,623 +1,131 @@
-import {
-  FlatList,
-  TextInput,
-  View,
-  Text,
-  RefreshControl,
-  TouchableOpacity,
-} from 'react-native';
-
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
-
-import {
-  useEffect,
-  useState,
-  useMemo,
-  useCallback,
-} from 'react';
-
-import {
-  useNavigation,
-} from '@react-navigation/native';
-
-import type {
-  Notification,
-} from '../../types/notification';
-
+import { useCallback, useMemo, useState } from 'react';
+import { Pressable, SectionList, View } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
 
-import NotificationCard from '../../components/notifications/NotificationCard';
-import LoadingScreen from '../../components/common/LoadingScreen';
-import SummaryCard from '../../components/common/SummaryCard';
-import EmptyState from '../../components/common/EmptyState';
-
 import { notificationService } from '../../services/notificationService';
-
-import { COLORS } from '../../utils/theme';
-import PageHeader from '../../components/common/PageHeader';
-import { notificationEvents } from '../../utils/notificationEvents';
-
-export default function NotificationsScreen() {
-
-  const navigation =
-    useNavigation<any>();
-
-  const [
-
-    notifications,
-
-    setNotifications,
-
-  ] = useState<Notification[]>([]);
-
-  const [
-
-  search,
-
-  setSearch,
-
-] = useState('');
-
-const [
-
-  page,
-
-  setPage,
-
-] = useState(1);
-
-const ITEMS_PER_PAGE = 5;
-
-  const [
-
-    refreshing,
-
-    setRefreshing,
-
-  ] = useState(false);
-
-  const [
-
-    loading,
-
-    setLoading,
-
-  ] = useState(true);
-
-  async function loadNotifications() {
-
-    try {
-
-      const data =
-        await notificationService.getNotifications();
-
-      setNotifications(data);
-
-    }
-
-    catch {
-
-      Toast.show({
-
-        type: 'error',
-
-        text1: 'Unable to load notifications',
-
-      });
-
-    }
-
-    finally {
-
-      setLoading(false);
-
-    }
-
-  }
-
-  useEffect(() => {
-
-    loadNotifications();
-
-    const unsubscribe =
-
-      notificationEvents.subscribe(() => {
-
-        loadNotifications();
-
-      });
-
-    return unsubscribe;
-
-  }, []);
-
-  const filtered = useMemo(() => {
-
-  return notifications.filter(n => {
-
-    const keyword = search.toLowerCase();
-
-    return (
-
-      n.title.toLowerCase().includes(keyword)
-
-      ||
-
-      n.message.toLowerCase().includes(keyword)
-
-    );
-
-  });
-
-}, [notifications, search]);
-
-  const sortedNotifications = useMemo(() => {
-
-    return [...filtered].sort(
-
-        (a, b) =>
-
-        new Date(b.createdAt).getTime()
-
-        -
-
-        new Date(a.createdAt).getTime(),
-
-    );
-
-    }, [filtered]);
-
-const paginatedNotifications =
-  sortedNotifications.slice(
-
-    (page - 1) * ITEMS_PER_PAGE,
-
-    page * ITEMS_PER_PAGE,
-
+import type { Notification } from '../../types/notification';
+import { Chips, Empty, Header, Icon, IconButton, ListSkeleton, Screen, T, haptic, useTone } from '../../ui/components';
+import { radius, space, useTheme } from '../../ui/theme';
+import { dayGroup, timeAgo } from '../../ui/format';
+import { notificationLook } from './notificationLook';
+
+type Filter = 'ALL' | 'UNREAD' | 'URGENT';
+
+function Row({ n, onPress }: { n: Notification; onPress(): void }) {
+  const { c } = useTheme();
+  const look = notificationLook(n.type, n.priority);
+  const t = useTone(look.tone);
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        { flexDirection: 'row', gap: 12, padding: space.md, borderRadius: radius.md, marginBottom: space.sm, backgroundColor: n.isRead ? c.surface : c.primarySoft, borderWidth: 1, borderColor: c.border },
+        pressed && { opacity: 0.7 },
+      ]}
+    >
+      <View style={{ width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg }}>
+        <Icon name={look.icon} size={21} color={t.fg} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <T variant="bodyStrong" numberOfLines={1} style={{ flex: 1 }}>
+            {n.title}
+          </T>
+          <T variant="tiny" muted>
+            {timeAgo(n.createdAt)}
+          </T>
+        </View>
+        <T variant="small" muted numberOfLines={2} style={{ marginTop: 2 }}>
+          {n.message}
+        </T>
+      </View>
+      {!n.isRead && <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: c.primary, marginTop: 6 }} />}
+    </Pressable>
   );
-
-const totalPages =
-  Math.max(
-
-    1,
-
-    Math.ceil(
-
-      sortedNotifications.length /
-
-      ITEMS_PER_PAGE,
-
-    ),
-
-  );
-
-  const summary = useMemo(() => ({
-
-  unread: notifications.filter(
-
-    n => !n.isRead,
-
-  ).length,
-
-  critical: notifications.filter(
-
-    n =>
-
-      n.priority === 'CRITICAL',
-
-  ).length,
-
-  today: notifications.filter(n => {
-
-    const date = new Date(n.createdAt);
-
-    const now = new Date();
-
-    return (
-
-      date.toDateString()
-
-      ===
-
-      now.toDateString()
-
-    );
-
-  }).length,
-
-}), [notifications]);
-
-async function onRefresh() {
-
-  try {
-
-    setRefreshing(true);
-
-    await loadNotifications();
-
-    setPage(1);
-
-  }
-
-  finally {
-
-    setRefreshing(false);
-
-  }
-
 }
 
-const openNotification = useCallback(
-
-  (id: string) => {
-
-    navigation.navigate(
-
-      'NotificationDetail',
-
-      {
-
-        id,
-
-      },
-
-    );
-
-  },
-
-  [navigation],
-
-);
-
-const renderItem = useCallback(
-
-  ({ item }: any) => (
-
-    <NotificationCard
-
-      notification={item}
-
-      onPress={() =>
-
-        openNotification(item.id)
-
-      }
-
-    />
-
-  ),
-
-  [openNotification],
-
-);
-
-  if (loading) {
-
-    return (
-
-        <LoadingScreen
-        title="Loading Notifications"
-        subtitle="Checking for new updates."
-        />
-
-    );
-
-    }
-
-
-  return (
-
-    <SafeAreaView
-
-      style={{
-
-        flex: 1,
-
-        backgroundColor:
-          COLORS.background,
-
-      }}
-
-    >
-
-      <FlatList
-
-        ListHeaderComponent={
-
-          <>
-
-            <PageHeader
-              title="Notifications"
-              subtitle="Recent alerts and updates"
-              onBack={() => {
-                if (navigation.canGoBack()) {
-                  navigation.goBack();
-                } else {
-                  navigation.navigate('Home');
-                }
-              }}
-            />
-
-            <View
-
-              style={{
-
-                flexDirection: 'row',
-
-                flexWrap: 'wrap',
-
-                justifyContent:
-                  'space-between',
-
-                paddingHorizontal: 22,
-
-              }}
-
-            >
-
-              <SummaryCard
-
-                title="Total"
-
-                value={
-                  notifications.length
-                }
-
-                icon="notifications"
-
-              />
-
-              <SummaryCard
-
-                title="Unread"
-
-                value={summary.unread}
-
-                icon="mark-email-unread"
-
-              />
-
-              <SummaryCard
-
-                title="Critical"
-
-                value={summary.critical}
-
-                icon="priority-high"
-
-              />
-
-              <SummaryCard
-
-                title="Today"
-
-                value={summary.today}
-
-                icon="today"
-
-              />
-
-            </View>
-
-            <TextInput
-
-              placeholder="Search notifications..."
-
-              placeholderTextColor={
-                COLORS.subtitle
-              }
-
-              value={search}
-
-              onChangeText={(text) => {
-
-                setSearch(text);
-
-                setPage(1);
-
-                }}
-
-              style={{
-
-                backgroundColor:
-                  'white',
-
-                marginHorizontal:20,
-                marginTop:20,
-                marginBottom:18,
-
-                padding: 16,
-
-                borderRadius: 14,
-
-                borderWidth: 1,
-
-                borderColor:
-                  COLORS.border,
-
-              }}
-
-            />
-
-          </>
-
-        }
-
-        
-        data={paginatedNotifications}
-
-        keyExtractor={
-
-          item => item.id
-
-        }
-        initialNumToRender={5}
-
-        maxToRenderPerBatch={5}
-
-        windowSize={10}
-
-        removeClippedSubviews
-
-        showsVerticalScrollIndicator={false}
-
-        renderItem={renderItem}
-
-        refreshControl={
-
-          <RefreshControl
-
-            refreshing={
-
-              refreshing
-
-            }
-
-            onRefresh={onRefresh}
-
-          />
-
-        }
-
-        contentContainerStyle={{
-
-          paddingHorizontal: 20,
-
-          paddingBottom: 30,
-
-        }}
-
-        ListEmptyComponent={
-
-        <EmptyState
-
-            icon="notifications-none"
-
-            title="No Notifications"
-
-            subtitle="Everything looks good. We'll notify you immediately if something changes."
-
-        />
-
-        }
-
-        ListFooterComponent={
-
-        <View
-        style={{
-
-            flexDirection:'row',
-
-            justifyContent:'space-between',
-
-            alignItems:'center',
-
-            paddingTop:24,
-            paddingBottom:10,
-
-        }}
-        >
-
-        <TouchableOpacity
-
-        disabled={page===1}
-
-        onPress={()=>{
-
-        if(page>1){
-
-        setPage(page-1);
-
-        }
-
-        }}
-
-        >
-
-        <Text
-        style={{
-
-        fontSize:16,
-
-        fontWeight:'700',
-
-        color:
-
-        page===1
-        ?COLORS.subtitle
-        :COLORS.primary,
-
-        }}
-        >
-
-        ← Previous
-
-        </Text>
-
-        </TouchableOpacity>
-
-        <Text
-        style={{
-
-        fontSize:16,
-
-        fontWeight:'700',
-
-        }}
-        >
-
-        Page {page} / {totalPages}
-
-        </Text>
-
-        <TouchableOpacity
-
-        disabled={page===totalPages}
-
-        onPress={()=>{
-
-        if(page<totalPages){
-
-        setPage(page+1);
-
-        }
-
-        }}
-
-        >
-
-        <Text
-        style={{
-
-        fontSize:16,
-
-        fontWeight:'700',
-
-        color:
-
-        page===totalPages
-        ?COLORS.subtitle
-        :COLORS.primary,
-
-        }}
-        >
-
-        Next →
-
-        </Text>
-
-        </TouchableOpacity>
-
-        </View>
-
-        }
-
-      />
-
-    </SafeAreaView>
-
+export default function NotificationsScreen() {
+  const navigation = useNavigation<any>();
+  const [items, setItems] = useState<Notification[] | null>(null);
+  const [filter, setFilter] = useState<Filter>('ALL');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async () => setItems(await notificationService.getNotifications()), []);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
   );
 
+  const filtered = (items ?? []).filter((n) => (filter === 'UNREAD' ? !n.isRead : filter === 'URGENT' ? n.priority === 'HIGH' || n.priority === 'CRITICAL' : true));
+  const sections = useMemo(() => {
+    const map = new Map<string, Notification[]>();
+    for (const n of filtered) map.set(dayGroup(n.createdAt), [...(map.get(dayGroup(n.createdAt)) ?? []), n]);
+    return [...map.entries()].map(([title, data]) => ({ title, data }));
+  }, [filtered]);
+  const unread = (items ?? []).filter((n) => !n.isRead).length;
+
+  const open = async (n: Notification) => {
+    haptic.tap();
+    navigation.navigate('NotificationDetail', { id: n.id, notification: n });
+    if (!n.isRead) notificationService.markAsRead(n.id).catch(() => undefined);
+  };
+
+  return (
+    <Screen scroll={false}>
+      <Header
+        title="Notifications"
+        subtitle={unread ? `${unread} unread` : 'All caught up'}
+        onBack={() => navigation.goBack()}
+        right={
+          unread ? (
+            <IconButton
+              icon="check-all"
+              label="Mark all read"
+              onPress={async () => {
+                await notificationService.markAllAsRead().catch(() => undefined);
+                Toast.show({ type: 'success', text1: 'All marked as read' });
+                load();
+              }}
+            />
+          ) : undefined
+        }
+      />
+      <Chips<Filter>
+        value={filter}
+        onChange={setFilter}
+        options={[
+          { value: 'ALL', label: 'All', count: items?.length },
+          { value: 'UNREAD', label: 'Unread', count: unread },
+          { value: 'URGENT', label: 'Urgent', count: items?.filter((n) => n.priority === 'HIGH' || n.priority === 'CRITICAL').length },
+        ]}
+      />
+      {!items ? (
+        <View style={{ marginTop: space.lg }}>
+          <ListSkeleton />
+        </View>
+      ) : (
+        <SectionList
+          sections={sections}
+          keyExtractor={(n) => n.id}
+          stickySectionHeadersEnabled={false}
+          contentContainerStyle={{ paddingTop: space.sm, paddingBottom: 60 }}
+          refreshing={refreshing}
+          onRefresh={async () => {
+            setRefreshing(true);
+            await load();
+            setRefreshing(false);
+          }}
+          ListEmptyComponent={<Empty icon="bell-check-outline" title="You're all caught up" message="New alerts about recalls, transfers and expiry show up here." />}
+          renderSectionHeader={({ section }) => (
+            <T variant="tiny" muted style={{ marginTop: space.md, marginBottom: space.sm }}>
+              {section.title.toUpperCase()}
+            </T>
+          )}
+          renderItem={({ item }) => <Row n={item} onPress={() => open(item)} />}
+        />
+      )}
+    </Screen>
+  );
 }
