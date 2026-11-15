@@ -4,6 +4,8 @@
 
 PharmaGuard AI tracks every medicine batch from manufacturer to patient, stores a tamper-proof fingerprint of each batch on the Ethereum blockchain, blocks unsafe sales at the counter, and uses AI agents to run drug recalls end to end. When a batch becomes unsafe (expired, recalled or tampered with) its digital identity is revoked on-chain, so it can never re-enter the supply chain.
 
+> 📄 **Product case** (problem, users, prioritisation, KPIs): [docs/PRODUCT.md](docs/PRODUCT.md)
+
 > Web dashboard for manufacturers, distributors, hospitals and regulators · Mobile app for pharmacies, hospitals and field staff · NestJS API · Solidity smart contract
 
 ## 🚀 Live demo
@@ -11,19 +13,12 @@ PharmaGuard AI tracks every medicine batch from manufacturer to patient, stores 
 | | Link |
 |---|---|
 | 🌐 **Web app** | **[pharmaguard-ai-tawny.vercel.app](https://pharmaguard-ai-tawny.vercel.app)** |
-| 📱 **Android app (APK)** | **[Download the APK](PASTE_YOUR_APK_LINK_HERE)** |
 | ⚙️ **API** | [pharmaguard-api-rktk.onrender.com](https://pharmaguard-api-rktk.onrender.com/health) |
 | 📖 **API docs (Swagger)** | [pharmaguard-api-rktk.onrender.com/api/docs](https://pharmaguard-api-rktk.onrender.com/api/docs) |
 
 Sign in with any [demo account](#demo-accounts) (password `Demo@1234`). Try **pharmacy@pharmaguard.ai** on the phone and **regulator@pharmaguard.ai** on the web.
 
 > ⏳ The API runs on Render's free plan and sleeps when idle. The first request after a break can take up to a minute; after that it is fast.
-
-### Install the Android app
-
-1. Open the APK link on your Android phone and download the file.
-2. Open it and allow **Install unknown apps** when asked.
-3. Launch **PharmaGuard AI** and sign in with a demo account.
 
 ---
 
