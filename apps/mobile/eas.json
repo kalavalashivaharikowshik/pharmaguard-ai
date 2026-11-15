@@ -14,7 +14,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://pharmaguard-api.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://pharmaguard-api-rktk.onrender.com"
       },
       "environment": "preview"
     },
@@ -23,7 +23,7 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://pharmaguard-api.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://pharmaguard-api-rktk.onrender.com"
       },
       "environment": "production"
     }
