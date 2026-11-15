@@ -460,19 +460,14 @@ export class TransfersService {
       },
 
       select: {
-
         id: true,
-
         fullName: true,
-
         role: true,
-
+        organizationName: true,
+        city: true,
       },
-
       orderBy: {
-
         fullName: 'asc',
-
       },
 
     });
