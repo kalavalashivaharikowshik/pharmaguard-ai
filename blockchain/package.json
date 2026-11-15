@@ -3,8 +3,23 @@
   "version": "1.0.0",
   "private": true,
   "devDependencies": {
-    "hardhat": "2.22.17",
+    "@nomicfoundation/hardhat-chai-matchers": "^1.0.6",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
-    "ethers": "^5.7.2"
+    "chai": "^4.5.0",
+    "ethers": "^5.7.2",
+    "hardhat": "2.22.17",
+    "solc": "0.8.20"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.1.0",
+    "dotenv": "^18.0.10"
+  },
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "node": "hardhat node",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
+    "export-abi": "node scripts/export-abi.js"
   }
 }
