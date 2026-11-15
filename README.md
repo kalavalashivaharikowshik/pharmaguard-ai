@@ -1,159 +1,143 @@
-# Turborepo starter
+# PharmaGuard AI
 
-This Turborepo starter is maintained by the Turborepo core team.
+**Autonomous pharmaceutical safety & recall management platform.**
 
-## Using this example
+PharmaGuard AI tracks every medicine batch from manufacturer to patient, stores a tamper-proof fingerprint of each batch on the Ethereum blockchain, blocks unsafe sales at the counter, and uses AI agents to run drug recalls end to end. When a batch becomes unsafe (expired, recalled or tampered with) its digital identity is revoked on-chain, so it can never re-enter the supply chain.
 
-Run the following command:
+> Web dashboard for manufacturers, distributors, hospitals and regulators · Mobile app for pharmacies, hospitals and field staff · NestJS API · Solidity smart contract
 
-```sh
-npx create-turbo@latest
+---
+
+## Features
+
+| Area | What it does |
+|---|---|
+| **Blockchain traceability** | Each batch gets a keccak256 fingerprint (number, drug, dates, quantity) stored in the `BatchRegistry` smart contract. Verification recomputes the hash from the database and compares it with the chain, so any database edit is detected as tampering. |
+| **Self-destructing digital identity** | Expired, recalled or tampered batches are revoked in the database **and on-chain** (`revokeBatch`). After that, QR verification fails, sales and transfers are blocked, and every holder gets a return/disposal notice. |
+| **Smart-contract sale blocking** | At the counter, a QR scan checks blockchain integrity, on-chain revocation, recall status, expiry and stock before approving a sale. Every blocked attempt is written to the violation log. |
+| **Agentic AI recall management** | A LangGraph workflow of five agents (Recall → Inventory → Compliance → Notification → Summary) locates every unit, creates a task per holder with a severity-based deadline (24h–7d), notifies them, and writes a Gemini summary. A scheduler escalates overdue tasks to regulators and closes the recall automatically when everyone is done. |
+| **AI insights & assistant** | Expiry-risk and recall-risk scores with explanations, a 3-month demand forecast, stock-out prediction, recommendations, and a chat assistant that only answers from data the user's role may see. Powered by Google Gemini, with a rule-based fallback. |
+| **Expiry enforcement** | A daily job warns holders 30 days before expiry and auto-revokes expired batches. |
+| **Disposal & returns** | Return/destroy notices with evidence. When every holder has destroyed it, the batch is marked `DESTROYED`. |
+| **Inventory & transfers** | Role rules: Manufacturer → Distributor → Pharmacy / Hospital, with stock validation and full history. |
+| **Map-based visibility** | Leaflet map of where stock sits, with a recall-impact view. |
+| **Notifications** | Real-time (Socket.IO), mobile push (Firebase), SMS for urgent alerts (Twilio) and email, delivered through a BullMQ queue on Redis. |
+| **Compliance** | Audit log of every critical action, violation log, compliance reports, CSV / Excel / PDF exports, safety KPIs. |
+| **Security** | JWT + bcrypt, role-based access for 6 roles, organisation registration with approval and email activation, Helmet, rate limiting, password hashes never leave the API. Mobile: secure token storage and fingerprint / Face ID unlock. |
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Clients
+    W[Web dashboard<br/>React + Vite + Tailwind]
+    M[Mobile app<br/>React Native + Expo]
+  end
+  subgraph API[NestJS API]
+    A[REST + Socket.IO]
+    AG[AI agents<br/>LangGraph + Gemini]
+    J[Scheduled jobs<br/>expiry, escalation]
+    Q[BullMQ queue]
+  end
+  W --> A
+  M --> A
+  A --> DB[(PostgreSQL<br/>Prisma)]
+  A --> R[(Redis)]
+  Q --> R
+  A --> BC[BatchRegistry.sol<br/>Ethereum / Sepolia]
+  AG --> G[Google Gemini]
+  Q --> N[Firebase push · Twilio SMS · SMTP]
 ```
 
-## What's inside?
+## Tech stack
 
-This Turborepo includes the following packages/apps:
+- **Backend:** NestJS 11, TypeScript, PostgreSQL, Prisma 6 (Rust-free client + `pg` adapter), Redis, BullMQ, Socket.IO, Swagger
+- **AI:** Google Gemini (`@google/genai`), LangGraph (`@langchain/langgraph`)
+- **Blockchain:** Solidity 0.8.20, OpenZeppelin AccessControl, Hardhat 2, ethers v5
+- **Web:** React 19, Vite, Tailwind CSS 4, Recharts, React Leaflet
+- **Mobile:** React Native 0.81, Expo 54, expo-camera, Firebase Messaging, expo-local-authentication, expo-secure-store
+- **Tooling:** Turborepo, Jest, GitHub Actions, Render, Vercel, EAS Build
 
-### Apps and Packages
+## Repository layout
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo build
+```
+apps/
+  backend/     NestJS API (src/modules/*), Prisma schema & migrations, scripts/
+  web/         React dashboard
+  mobile/      Expo app
+blockchain/    BatchRegistry.sol, tests, deploy scripts
+docs/          Deployment guide
+render.yaml    Render blueprint (API + Postgres + Redis)
 ```
 
-Without global `turbo`, use your package manager:
+## Run locally
 
-```sh
-cd my-turborepo
-npx turbo build
-npm dlx turbo build
-npm exec turbo build
+Prerequisites: Node 20+, PostgreSQL, (optional) Redis.
+
+```bash
+npm install                      # all workspaces
+cd blockchain && npm install
+
+# 1. Local blockchain + contract
+cd blockchain
+npx hardhat node                 # terminal 1
+npm run deploy:local             # terminal 2 → prints the contract address
+
+# 2. API
+cd apps/backend
+cp .env.example .env             # set DATABASE_URL (and GEMINI_API_KEY if you have one)
+npx prisma migrate deploy
+npm run seed                     # demo users, password Demo@1234
+npm run start:dev                # http://localhost:3000, docs at /api/docs
+
+# 3. Web
+cd apps/web
+npm run dev                      # http://localhost:5173
+
+# 4. Mobile
+cd apps/mobile
+EXPO_PUBLIC_API_URL=http://<your-LAN-IP>:3000 npx expo start
 ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+Optional: `bash apps/backend/scripts/demo-data.sh` loads batches, transfers and an active recall.
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+### Demo accounts
 
-```sh
-turbo build --filter=docs
+All use the password `Demo@1234`.
+
+| Role | Email |
+|---|---|
+| Super Admin | admin@pharmaguard.ai |
+| Regulator | regulator@pharmaguard.ai |
+| Manufacturer | manufacturer@pharmaguard.ai |
+| Distributor | distributor@pharmaguard.ai |
+| Pharmacy | pharmacy@pharmaguard.ai |
+| Hospital | hospital@pharmaguard.ai |
+
+## Testing
+
+```bash
+npm test --workspace=backend         # 22 unit tests
+cd blockchain && npx hardhat test    # 7 smart-contract tests
+API=http://localhost:3000 DATABASE_URL=... bash apps/backend/scripts/e2e-smoke.sh   # 44 end-to-end checks
 ```
 
-Without global `turbo`:
+The end-to-end script exercises every role: RBAC, blockchain registration and verification, transfers, sale blocking, the AI recall workflow through to on-chain revocation and disposal, the expiry engine, tamper detection, AI insights and compliance reports.
 
-```sh
-npx turbo build --filter=docs
-npm exec turbo build --filter=docs
-npm exec turbo build --filter=docs
-```
+## Deployment
 
-### Develop
+See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**: Render (API, Postgres, Redis), Vercel (web), Sepolia (contract) and EAS (Android APK), all on free tiers.
 
-To develop all apps and packages, run the following command:
+## Role permissions
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo dev
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo dev
-npm exec turbo dev
-npm exec turbo dev
-```
-
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo dev --filter=web
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo dev --filter=web
-npm exec turbo dev --filter=web
-npm exec turbo dev --filter=web
-```
-
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo login
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo login
-npm exec turbo login
-npm exec turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo link
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo link
-npm exec turbo link
-npm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+| Module | Super Admin | Regulator | Manufacturer | Distributor | Pharmacy / Hospital |
+|---|:-:|:-:|:-:|:-:|:-:|
+| Dashboard, AI insights, assistant | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Batches | View | View | Manage | ❌ | ❌ |
+| Inventory | All | All | Own | Own | Own |
+| Create transfer | ❌ | ❌ | → Distributor | → Pharmacy / Hospital | ❌ |
+| Transfer history | All | All | Own | Own | Received |
+| Recalls | Initiate | Initiate | View + tasks | View + tasks | View + tasks |
+| Revocation / disposal | ✅ | ✅ | Own | Own | Own |
+| Compliance, violations, analytics | ✅ | ✅ | ❌ | ❌ | ❌ |
+| User management | ✅ | ❌ | ❌ | ❌ | ❌ |
