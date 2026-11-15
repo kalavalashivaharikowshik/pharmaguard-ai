@@ -1,543 +1,75 @@
-import {
-  useState,
-  useCallback,
-  useMemo,
-} from 'react';
-
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-} from 'react-native';
-
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
-
-import {
-  MaterialIcons,
-} from '@expo/vector-icons';
-
+import { useState } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
-import PageHeader from '../../components/common/PageHeader';
-
 import { authService } from '../../services/authService';
+import { AuthBackground, LogoMark } from './AuthBrand';
+import { Button, Field, Icon, T } from '../../ui/components';
+import { radius, shadow, space, useTheme } from '../../ui/theme';
+import { errMsg } from '../../ui/format';
 
-import { COLORS } from '../../utils/theme';
+export default function ForgotPasswordScreen({ onBack }: { onBack(): void }) {
+  const { c } = useTheme();
+  const [email, setEmail] = useState('');
+  const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-
-interface Props {
-
-  onBack(): void;
-
-}
-
-
-export default function ForgotPasswordScreen({
-
-  onBack,
-
-}: Props) {
-
-
-  const [
-
-    email,
-
-    setEmail,
-
-  ] = useState('');
-
-
-  const [
-
-    loading,
-
-    setLoading,
-
-  ] = useState(false);
-
-
-
-  const isDisabled = useMemo(() => {
-
-    return (
-
-      loading ||
-
-      !email.trim()
-
-    );
-
-  }, [
-
-    loading,
-
-    email,
-
-  ]);
-
-
-
-  const submit = useCallback(async () => {
-
-
-    if (!email.trim()) {
-
-
-      Toast.show({
-
-        type: 'error',
-
-        text1: 'Email Required',
-
-      });
-
-
-      return;
-
-    }
-
-
-
+  const submit = async () => {
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return Toast.show({ type: 'error', text1: 'Enter a valid email' });
+    setLoading(true);
     try {
-
-
-      setLoading(true);
-
-
-
-      await authService.forgotPassword({
-
-        email,
-
-      });
-
-
-
-      setEmail('');
-
-
-
-      Toast.show({
-
-        type: 'success',
-
-        text1: 'Reset Email Sent',
-
-        text2: 'Check your inbox.',
-
-      });
-
-
-
-      setTimeout(() => {
-
-        onBack();
-
-      }, 1500);
-
-
-
-    }
-
-    catch {
-
-
-      Toast.show({
-
-        type: 'error',
-
-        text1: 'Request Failed',
-
-      });
-
-
-    }
-
-    finally {
-
-
+      await authService.forgotPassword({ email: email.trim().toLowerCase() });
+      setSent(true);
+    } catch (e) {
+      Toast.show({ type: 'error', text1: 'Could not send reset link', text2: errMsg(e) });
+    } finally {
       setLoading(false);
-
-
     }
-
-
-  }, [
-
-    email,
-
-    onBack,
-
-  ]);
-
-
+  };
 
   return (
-
-    <SafeAreaView
-
-      style={styles.safeArea}
-
-    >
-
-
-      <KeyboardAvoidingView
-
-        behavior={
-
-          Platform.OS === 'ios'
-
-            ? 'padding'
-
-            : undefined
-
-        }
-
-        style={styles.container}
-
-      >
-
-
-        <PageHeader
-            title="Forgot Password"
-            subtitle="Enter your email to receive a password reset link."
-            onBack={onBack}
-            />
-
-
-
-        <View
-
-          style={styles.iconContainer}
-
-        >
-
-
-          <View
-
-            style={styles.iconCircle}
-
-          >
-
-
-            <MaterialIcons
-
-              name="mail"
-
-              size={46}
-
-              color={COLORS.primary}
-
-            />
-
-
-          </View>
-
-
-        </View>
-
-
-
-        <View
-
-          style={styles.card}
-
-        >
-
-
-          <Text
-
-            style={styles.label}
-
-          >
-
-            Email Address
-
-          </Text>
-                    <TextInput
-
-            placeholder="Email"
-
-            value={email}
-
-            onChangeText={setEmail}
-
-            autoCapitalize="none"
-
-            keyboardType="email-address"
-
-            style={styles.input}
-
-          />
-
-
-
-          <TouchableOpacity
-
-
-            onPress={submit}
-
-
-            disabled={isDisabled}
-
-
-            style={[
-
-              styles.button,
-
-              {
-
-                opacity: isDisabled
-
-                  ? 0.5
-
-                  : 1,
-
-              },
-
-            ]}
-
-
-          >
-
-
-            {
-
-              loading
-
-                ? (
-
-                  <ActivityIndicator
-
-                    color="white"
-
-                  />
-
-                )
-
-                : (
-
-                  <Text
-
-                    style={styles.buttonText}
-
-                  >
-
-                    Send Reset Link
-
-                  </Text>
-
-                )
-
-            }
-
-
-          </TouchableOpacity>
-
-
-
-
-          <TouchableOpacity
-
-
-            onPress={onBack}
-
-
-            disabled={loading}
-
-
-            style={[
-
-              styles.backButton,
-
-              {
-
-                opacity: loading
-
-                  ? 0.5
-
-                  : 1,
-
-              },
-
-            ]}
-
-
-          >
-
-
-            <Text
-
-              style={styles.backText}
-
-            >
-
-              ← Back to Login
-
-            </Text>
-
-
-          </TouchableOpacity>
-
-
-        </View>
-
-
-      </KeyboardAvoidingView>
-
-
-    </SafeAreaView>
-
-
+    <AuthBackground>
+      <SafeAreaView style={{ flex: 1 }}>
+        <Pressable onPress={onBack} style={{ padding: space.lg, flexDirection: 'row', alignItems: 'center', gap: 6 }} accessibilityLabel="Back to sign in">
+          <Icon name="arrow-left" color="#FFF" />
+          <T variant="bodyStrong" color="#FFF">
+            Sign in
+          </T>
+        </Pressable>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: space.xl }} keyboardShouldPersistTaps="handled">
+            <View style={{ alignItems: 'center', marginBottom: space.xl }}>
+              <LogoMark size={64} />
+            </View>
+            <View style={[{ backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xl }, shadow(c, 2)]}>
+              {sent ? (
+                <View style={{ alignItems: 'center' }}>
+                  <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: c.successSoft, alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon name="email-check-outline" size={36} color={c.success} />
+                  </View>
+                  <T variant="h2" center style={{ marginTop: space.lg }}>
+                    Check your email
+                  </T>
+                  <T muted center style={{ marginTop: 6, marginBottom: space.xl }}>
+                    If an account exists for {email}, we've sent a link to reset your password.
+                  </T>
+                  <Button title="Back to sign in" onPress={onBack} style={{ alignSelf: 'stretch' }} />
+                </View>
+              ) : (
+                <>
+                  <T variant="h2">Reset password</T>
+                  <T muted style={{ marginTop: 4, marginBottom: space.xl }}>
+                    Enter your account email and we'll send you a reset link.
+                  </T>
+                  <Field label="Email" icon="email-outline" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholder="you@organisation.com" onSubmitEditing={submit} />
+                  <Button title="Send reset link" icon="send" loading={loading} onPress={submit} />
+                </>
+              )}
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </AuthBackground>
   );
-
-
 }
-
-
-
-const styles = StyleSheet.create({
-
-
-  safeArea: {
-
-    flex: 1,
-
-    backgroundColor: COLORS.background,
-
-  },
-
-
-  container: {
-
-    flex: 1,
-
-  },
-
-
-  iconContainer: {
-
-    alignItems: 'center',
-
-    marginBottom: 24,
-
-  },
-
-
-  iconCircle: {
-
-    width: 90,
-
-    height: 90,
-
-    borderRadius: 45,
-
-    backgroundColor: '#ECFDF5',
-
-    justifyContent: 'center',
-
-    alignItems: 'center',
-
-  },
-
-
-  card: {
-
-    backgroundColor: 'white',
-
-    borderRadius: 20,
-
-    padding: 20,
-
-    marginHorizontal: 20,
-
-    elevation: 3,
-
-  },
-
-
-  label: {
-
-    fontWeight: '700',
-
-    marginBottom: 8,
-
-    fontSize: 15,
-
-  },
-
-
-  input: {
-
-    backgroundColor: 'white',
-
-    borderWidth: 1,
-
-    borderColor: COLORS.border,
-
-    padding: 16,
-
-    borderRadius: 14,
-
-    fontSize: 16,
-
-    marginBottom: 20,
-
-  },
-
-
-  button: {
-
-    backgroundColor: COLORS.primary,
-
-    padding: 16,
-
-    borderRadius: 14,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-  },
-
-
-  buttonText: {
-
-    color: 'white',
-
-    fontWeight: '700',
-
-    fontSize: 16,
-
-  },
-
-
-  backButton: {
-
-    marginTop: 20,
-
-    alignItems: 'center',
-
-  },
-
-
-  backText: {
-
-    color: COLORS.primary,
-
-    fontWeight: '600',
-
-    fontSize: 16,
-
-  },
-
-
-});

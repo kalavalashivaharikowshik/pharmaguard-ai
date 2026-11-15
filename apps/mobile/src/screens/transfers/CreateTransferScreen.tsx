@@ -1,799 +1,151 @@
-import {
-  ScrollView,
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-  StyleSheet,
-} from 'react-native';
-
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
-
-import {
-  useEffect,
-  useState,
-  useMemo,
-  useCallback,
-} from 'react';
-
-import {
-  useNavigation,
-} from '@react-navigation/native';
-
-import type {
-  InventoryBatch,
-} from '../../types/inventory';
-
-import type {
-  User,
-} from '../../types/auth';
-
+import { useEffect, useMemo, useState } from 'react';
+import { Pressable, View } from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
 
-import {
-  Picker,
-} from '@react-native-picker/picker';
+import { inventoryService } from '../../services/inventoryService';
+import { transferService } from '../../services/transferService';
+import type { InventoryBatch } from '../../types/inventory';
+import { Button, Card, Empty, Field, Header, Icon, Screen, SearchBar, Skeleton, T, haptic } from '../../ui/components';
+import { radius, space, useTheme } from '../../ui/theme';
+import { errMsg, fmtDate, ROLE_LABEL } from '../../ui/format';
 
-import {
-  MaterialIcons,
-} from '@expo/vector-icons';
-
-import { COLORS } from '../../utils/theme';
-
-import {
-  inventoryService,
-} from '../../services/inventoryService';
-
-import {
-  transferService,
-} from '../../services/transferService';
-
-import PageHeader from '../../components/common/PageHeader';
-import LoadingScreen from '../../components/common/LoadingScreen';
+type Receiver = { id: string; fullName: string; role: string; organizationName?: string; city?: string };
 
 export default function CreateTransferScreen() {
-
-  const navigation =
-    useNavigation<any>();
-
-  const [
-    inventory,
-    setInventory,
-  ] = useState<InventoryBatch[]>([]);
-
-  const [
-    receivers,
-    setReceivers,
-  ] = useState<User[]>([]);
-
-  const [
-    selectedBatch,
-    setSelectedBatch,
-  ] = useState('');
-
-  const [
-    selectedReceiver,
-    setSelectedReceiver,
-  ] = useState('');
-
-  const [
-    quantity,
-    setQuantity,
-  ] = useState('');
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(false);
-
-  const [
-    pageLoading,
-    setPageLoading,
-  ] = useState(true);
-
-  const selectedInventory = useMemo(
-
-    () =>
-
-      inventory.find(
-
-        i => i.batch.id === selectedBatch,
-
-      ),
-
-    [inventory, selectedBatch],
-
-  );
-
-  const selectedUser = useMemo(
-
-    () =>
-
-      receivers.find(
-
-        u => u.id === selectedReceiver,
-
-      ),
-
-    [receivers, selectedReceiver],
-
-  );
-
-  const disableButton = useMemo(
-
-    () =>
-
-      loading ||
-
-      !selectedBatch ||
-
-      !selectedReceiver ||
-
-      !quantity,
-
-    [
-
-      loading,
-
-      quantity,
-
-      selectedBatch,
-
-      selectedReceiver,
-
-    ],
-
-  );
-
-  const loadData = useCallback(async () => {
-
-    try {
-
-      const stock =
-        await inventoryService.getMyInventory();
-
-      const active =
-        stock.filter(
-
-          i =>
-
-            i.batch.status === 'ACTIVE'
-
-            &&
-
-            i.quantity > 0,
-
-        );
-
-      setInventory(active);
-
-      const users =
-        await transferService.getTransferUsers();
-
-      setReceivers(users);
-
-    }
-
-    catch {
-
-      Toast.show({
-
-        type: 'error',
-
-        text1: 'Unable to load data',
-
-      });
-
-    }
-
-    finally {
-
-      setPageLoading(false);
-
-    }
-
-  }, []);
-
-  const createTransfer = useCallback(async () => {
-
-    if (!selectedBatch) {
-
-      Toast.show({
-
-        type: 'error',
-
-        text1: 'Select a batch',
-
-      });
-
-      return;
-
-    }
-
-    if (!selectedReceiver) {
-
-      Toast.show({
-
-        type: 'error',
-
-        text1: 'Select a receiver',
-
-      });
-
-      return;
-
-    }
-
-    if (!quantity) {
-
-      Toast.show({
-
-        type: 'error',
-
-        text1: 'Enter quantity',
-
-      });
-
-      return;
-
-    }
-
-    const qty =
-      Number(quantity);
-
-    if (
-
-      Number.isNaN(qty) ||
-
-      qty <= 0
-
-    ) {
-
-      Toast.show({
-
-        type: 'error',
-
-        text1: 'Invalid quantity',
-
-      });
-
-      return;
-
-    }
-
-    if (
-
-      selectedInventory &&
-
-      qty >
-
-      selectedInventory.quantity
-
-    ) {
-
-      Toast.show({
-
-        type: 'error',
-
-        text1: 'Insufficient Inventory',
-
-      });
-
-      return;
-
-    }
-
-    Alert.alert(
-
-      'Confirm Transfer',
-
-      `Drug: ${selectedInventory?.batch.drugName}
-
-Receiver: ${selectedUser?.fullName}
-
-Quantity: ${qty} Units`,
-
-      [
-
-        {
-
-          text: 'Cancel',
-
-          style: 'cancel',
-
-        },
-
-        {
-
-          text: 'Transfer',
-
-          onPress: async () => {
-
-            try {
-
-              setLoading(true);
-
-              const result =
-
-                await transferService.createTransfer({
-
-                  batchId: selectedBatch,
-
-                  toUserId: selectedReceiver,
-
-                  quantity: qty,
-
-                });
-
-              if (result?.queued) {
-
-                Toast.show({
-
-                  type: 'success',
-
-                  text1: 'Transfer Queued',
-
-                  text2:
-                    'Will automatically sync when internet returns.',
-
-                });
-
-              }
-
-              else {
-
-                Toast.show({
-
-                  type: 'success',
-
-                  text1: 'Transfer Completed',
-
-                  text2:
-                    'Inventory transferred successfully.',
-
-                });
-
-              }
-
-              setSelectedBatch('');
-
-              setSelectedReceiver('');
-
-              setQuantity('');
-
-              navigation.navigate(
-                'Main',
-                {
-                  screen: 'Transfers',
-                },
-              );
-
-            }
-
-            catch (error: any) {
-
-              Toast.show({
-
-                type: 'error',
-
-                text1: 'Transfer Failed',
-
-                text2:
-
-                  error?.response?.data?.message ??
-
-                  'Unable to create transfer.',
-
-              });
-
-            }
-
-            finally {
-
-              setLoading(false);
-
-            }
-
-          },
-
-        },
-
-      ],
-
-    );
-
-  }, [
-
-    navigation,
-
-    quantity,
-
-    selectedBatch,
-
-    selectedInventory,
-
-    selectedReceiver,
-
-    selectedUser,
-
-  ]);
+  const navigation = useNavigation<any>();
+  const { params } = useRoute<any>();
+  const { c } = useTheme();
+  const [stock, setStock] = useState<InventoryBatch[] | null>(null);
+  const [receivers, setReceivers] = useState<Receiver[]>([]);
+  const [batchId, setBatchId] = useState<string | undefined>(params?.batchId);
+  const [toUserId, setToUserId] = useState<string>();
+  const [qty, setQty] = useState('');
+  const [q, setQ] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    inventoryService.getMyInventory().then((s) => setStock(s.filter((i) => i.quantity > 0 && i.batch.status !== 'REVOKED' && i.batch.status !== 'RECALLED')));
+    transferService.getTransferUsers().then(setReceivers).catch(() => setReceivers([]));
+  }, []);
 
-    loadData();
+  const selected = stock?.find((s) => s.batch.id === batchId);
+  const receiver = receivers.find((r) => r.id === toUserId);
+  const amount = Number(qty);
+  const qtyError = qty && (!Number.isInteger(amount) || amount <= 0) ? 'Enter a whole number above 0' : selected && amount > selected.quantity ? `You only have ${selected.quantity} units` : undefined;
+  const filteredStock = useMemo(() => (stock ?? []).filter((s) => !q || `${s.batch.drugName} ${s.batch.batchNumber}`.toLowerCase().includes(q.toLowerCase())), [stock, q]);
 
-  }, [loadData]);
+  const submit = async () => {
+    if (!selected || !receiver || !amount || qtyError) return;
+    setSaving(true);
+    try {
+      const res = await transferService.createTransfer({ batchId: selected.batch.id, toUserId: receiver.id, quantity: amount });
+      haptic.success();
+      Toast.show({
+        type: 'success',
+        text1: res?.queued ? 'Saved offline' : 'Transfer completed',
+        text2: res?.queued ? 'It will be sent when you are back online.' : `${amount} units sent to ${receiver.organizationName ?? receiver.fullName}`,
+      });
+      navigation.goBack();
+    } catch (e) {
+      haptic.error();
+      Toast.show({ type: 'error', text1: 'Transfer failed', text2: errMsg(e) });
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  if (pageLoading) {
+  const Step = ({ n, title, done }: { n: number; title: string; done: boolean }) => (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: space.xl, marginBottom: space.md }}>
+      <View style={{ width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: done ? c.success : c.primary }}>
+        {done ? <Icon name="check" size={16} color="#FFF" /> : <T variant="tiny" color="#FFF">{n}</T>}
+      </View>
+      <T variant="h3">{title}</T>
+    </View>
+  );
 
-    return (
-
-      <LoadingScreen
-        title="Loading Transfer"
-        subtitle="Preparing inventory and receiver information."
-      />
-
-    );
-
-  }
-  return (
-
-  <SafeAreaView
-    style={styles.container}
-  >
-
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={styles.content}
+  const Option = ({ active, onPress, title, subtitle, right }: { active: boolean; onPress(): void; title: string; subtitle: string; right?: string }) => (
+    <Pressable
+      onPress={() => {
+        haptic.tap();
+        onPress();
+      }}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: space.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: active ? c.primary : c.border, backgroundColor: active ? c.primarySoft : c.surface, marginBottom: space.sm }}
     >
+      <Icon name={active ? 'radiobox-marked' : 'radiobox-blank'} color={active ? c.primary : c.textSoft} />
+      <View style={{ flex: 1 }}>
+        <T variant="bodyStrong" numberOfLines={1}>
+          {title}
+        </T>
+        <T variant="small" muted numberOfLines={1}>
+          {subtitle}
+        </T>
+      </View>
+      {right ? <T variant="bodyStrong">{right}</T> : null}
+    </Pressable>
+  );
 
-      <PageHeader
-        title="New Transfer"
-        subtitle="Transfer inventory to another organization"
-        onBack={() => navigation.goBack()}
-      />
+  return (
+    <Screen>
+      <Header title="New transfer" subtitle="Move stock to the next organisation" onBack={() => navigation.goBack()} />
 
-      <View style={styles.iconContainer}>
+      <Step n={1} title="Choose batch" done={!!selected} />
+      {!stock ? (
+        <Skeleton height={64} />
+      ) : stock.length === 0 ? (
+        <Card>
+          <Empty icon="package-variant" title="No stock to transfer" message="You don't hold any active batches." />
+        </Card>
+      ) : (
+        <>
+          {stock.length > 4 && (
+            <View style={{ marginBottom: space.sm }}>
+              <SearchBar value={q} onChangeText={setQ} placeholder="Search your stock" />
+            </View>
+          )}
+          {filteredStock.slice(0, 8).map((s) => (
+            <Option
+              key={s.id}
+              active={s.batch.id === batchId}
+              onPress={() => setBatchId(s.batch.id)}
+              title={s.batch.drugName}
+              subtitle={`${s.batch.batchNumber} · exp ${fmtDate(s.batch.expiryDate)}`}
+              right={`${s.quantity}`}
+            />
+          ))}
+        </>
+      )}
 
-        <View style={styles.iconCircle}>
-
-          <MaterialIcons
-            name="local-shipping"
-            size={46}
-            color={COLORS.primary}
+      <Step n={2} title="Send to" done={!!receiver} />
+      {receivers.length === 0 ? (
+        <T muted>No eligible receivers for your role.</T>
+      ) : (
+        receivers.map((r) => (
+          <Option
+            key={r.id}
+            active={r.id === toUserId}
+            onPress={() => setToUserId(r.id)}
+            title={r.organizationName ?? r.fullName}
+            subtitle={`${ROLE_LABEL[r.role] ?? r.role}${r.city ? ` · ${r.city}` : ''}`}
           />
+        ))
+      )}
 
+      <Step n={3} title="Quantity" done={!!amount && !qtyError} />
+      <Field value={qty} onChangeText={(v) => setQty(v.replace(/[^0-9]/g, ''))} keyboardType="number-pad" placeholder={selected ? `Up to ${selected.quantity}` : 'Units'} icon="cube-outline" error={qtyError} />
+      {selected && (
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: -8, marginBottom: space.lg }}>
+          {[0.25, 0.5, 1].map((f) => (
+            <Pressable key={f} onPress={() => setQty(String(Math.max(1, Math.floor(selected.quantity * f))))} style={{ paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, backgroundColor: c.surfaceAlt }}>
+              <T variant="small" style={{ fontWeight: '700' }}>
+                {f === 1 ? 'All' : `${f * 100}%`}
+              </T>
+            </Pressable>
+          ))}
         </View>
-
-      </View>
-
-      <View style={styles.card}>
-
-        <Text style={styles.sectionTitle}>
-          Batch
-        </Text>
-
-        <View style={styles.pickerContainer}>
-
-          <Picker
-            selectedValue={selectedBatch}
-            onValueChange={setSelectedBatch}
-          >
-
-            <Picker.Item
-              label="Select Batch"
-              value=""
-            />
-
-            {
-
-              inventory.map(item => (
-
-                <Picker.Item
-                  key={item.id}
-                  label={`${item.batch.drugName} (${item.quantity} Units)`}
-                  value={item.batch.id}
-                />
-
-              ))
-
-            }
-
-          </Picker>
-
-        </View>
-
-        {
-
-          selectedInventory && (
-
-            <>
-
-              <View style={styles.availableBox}>
-
-                <View style={styles.infoRow}>
-
-                  <MaterialIcons
-                    name="check-circle"
-                    size={18}
-                    color={COLORS.success}
-                  />
-
-                  <Text
-                    style={{
-                      color: COLORS.success,
-                      fontWeight: '700',
-                      marginLeft: 6,
-                    }}
-                  >
-                    Available Stock
-                  </Text>
-
-                </View>
-
-                <Text
-                  style={{
-                    fontSize:22,
-                    fontWeight:'700',
-                    marginTop:4,
-                  }}
-                >
-                  {selectedInventory.quantity} Units
-                </Text>
-
-              </View>
-
-              <View style={styles.infoBox}>
-
-                <View style={styles.infoRowBetween}>
-
-                  <View style={styles.column}>
-
-                    <Text style={styles.label}>
-                      Drug Name
-                    </Text>
-
-                    <Text style={styles.value}>
-                      {selectedInventory.batch.drugName}
-                    </Text>
-
-                  </View>
-
-                  <View style={styles.column}>
-
-                    <Text style={styles.label}>
-                      Batch
-                    </Text>
-
-                    <Text style={styles.value}>
-                      {selectedInventory.batch.batchNumber}
-                    </Text>
-
-                  </View>
-
-                </View>
-
-                <Text style={styles.label}>
-                  Available
-                </Text>
-
-                <Text style={styles.value}>
-                  {selectedInventory.quantity} Units
-                </Text>
-
-              </View>
-
-            </>
-
-          )
-
-        }
-
-        <Text style={styles.sectionTitle}>
-          Receiver
-        </Text>
-
-        <View style={styles.pickerContainer}>
-
-          <Picker
-            selectedValue={selectedReceiver}
-            onValueChange={setSelectedReceiver}
-          >
-
-            <Picker.Item
-              label="Select Receiver"
-              value=""
-            />
-
-            {
-
-              receivers.map(user => (
-
-                <Picker.Item
-                  key={user.id}
-                  label={user.fullName}
-                  value={user.id}
-                />
-
-              ))
-
-            }
-
-          </Picker>
-
-        </View>
-
-        <Text style={styles.sectionTitle}>
-          Quantity
-        </Text>
-
-        <TextInput
-          placeholder="Enter Quantity"
-          keyboardType="numeric"
-          value={quantity}
-          onChangeText={setQuantity}
-          style={styles.input}
-        />
-
-        <TouchableOpacity
-
-          disabled={disableButton}
-
-          onPress={createTransfer}
-
-          style={[
-            styles.button,
-            {
-              opacity:
-                disableButton
-                  ? 0.5
-                  : 1,
-            },
-          ]}
-
-        >
-
-          {
-
-            loading
-
-              ? (
-
-                <ActivityIndicator
-                  color="white"
-                />
-
-              )
-
-              : (
-
-                <Text style={styles.buttonText}>
-                  Create Transfer
-                </Text>
-
-              )
-
-          }
-
-        </TouchableOpacity>
-
-      </View>
-
-    </ScrollView>
-
-  </SafeAreaView>
-
-);
+      )}
+
+      <Button title="Send transfer" icon="send" loading={saving} disabled={!selected || !receiver || !amount || !!qtyError} onPress={submit} style={{ marginTop: space.md }} />
+    </Screen>
+  );
 }
-const styles = StyleSheet.create({
-
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-
-  content: {
-    padding: 20,
-  },
-
-  iconContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-
-  iconCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: '#ECFDF5',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  card: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 20,
-    elevation: 3,
-  },
-
-  sectionTitle: {
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 14,
-    marginBottom: 20,
-  },
-
-  availableBox: {
-    backgroundColor: '#ECFDF5',
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 18,
-  },
-
-  infoBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 20,
-  },
-
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  infoRowBetween: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-
-  column: {
-    flex: 1,
-  },
-
-  label: {
-    color: COLORS.subtitle,
-    fontSize: 13,
-  },
-
-  value: {
-    fontWeight: '700',
-    marginTop: 4,
-  },
-
-  input: {
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 16,
-    borderRadius: 14,
-    fontSize: 16,
-    marginBottom: 28,
-  },
-
-  button: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 18,
-    borderRadius: 14,
-    alignItems: 'center',
-    elevation: 3,
-  },
-
-  buttonText: {
-    color: 'white',
-    fontWeight: '700',
-    fontSize: 17,
-  },
-
-});

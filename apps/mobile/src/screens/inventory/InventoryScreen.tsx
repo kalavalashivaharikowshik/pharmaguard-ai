@@ -1,616 +1,159 @@
-import {
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  ScrollView,
-} from 'react-native';
-
-import {
-  useMemo,
-  useState,
-  useCallback,
-} from 'react';
-
-import {
-  useNavigation,
-} from '@react-navigation/native';
-
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
-
-import InventoryCard from '../../components/inventory/InventoryCard';
-
-import { useInventory } from '../../hooks/useInventory';
-
-import { COLORS } from '../../utils/theme';
-
-import FilterChip from '../../components/inventory/FilterChip';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { FlatList, StyleSheet, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 
 import { useAuth } from '../../context/AuthContext';
+import { inventoryService } from '../../services/inventoryService';
+import type { InventoryBatch } from '../../types/inventory';
+import { Badge, Card, Chips, Empty, Header, Icon, IconButton, ListSkeleton, Screen, SearchBar, T } from '../../ui/components';
+import { radius, space, statusTone, useTheme } from '../../ui/theme';
+import { can, daysUntil, fmtDate } from '../../ui/format';
 
-import InventorySkeleton from '../../components/inventory/InventorySkeleton';
-
-import SummaryCard from '../../components/inventory/SummaryCard';
-import PageHeader from '../../components/common/PageHeader';
-import EmptyState from '../../components/common/EmptyState';
+type Filter = 'ALL' | 'SAFE' | 'EXPIRING' | 'UNSAFE';
 
 export default function InventoryScreen() {
-
-  const {
-    inventory,
-    loading,
-    refresh,
-  } = useInventory();
-
+  const navigation = useNavigation<any>();
   const { user } = useAuth();
-
-  const role = user?.role;
-
-  const navigation =
-    useNavigation<any>();
-
-  const [search, setSearch] =
-    useState('');
-
-  const [status, setStatus] =
-  useState('ALL');
-
-    const [page, setPage] =
-    useState(1);
-
-    const ITEMS_PER_PAGE = 5;
-    const [
-
-    refreshing,
-
-    setRefreshing,
-
-    ] = useState(false);
-
-  const summary = useMemo(() => ({
-
-  totalItems: inventory.length,
-
-  totalUnits: inventory.reduce(
-
-    (total, item) => total + item.quantity,
-
-    0,
-
-  ),
-
-  active: inventory.filter(
-
-    item => item.batch.status === 'ACTIVE',
-
-  ).length,
-
-  revoked: inventory.filter(
-
-    item => item.batch.status === 'REVOKED',
-
-  ).length,
-
-}), [inventory]);
-
-  const filteredInventory =
-    useMemo(() => {
-
-      return inventory.filter(item => {
-
-        const drugMatch =
-          item.batch.drugName
-            .toLowerCase()
-            .includes(
-              search.toLowerCase(),
-            );
-
-        const batchMatch =
-          item.batch.batchNumber
-            .toLowerCase()
-            .includes(
-              search.toLowerCase(),
-            );
-
-        const statusMatch =
-          status === 'ALL'
-            ? true
-            : item.batch.status === status;
-
-        return (
-          (drugMatch || batchMatch) &&
-          statusMatch
-        );
-
-      });
-
-    }, [
-      inventory,
-      search,
-      status,
-    ]);
-
-  const paginatedInventory =
-    filteredInventory.slice(
-
-        (page - 1) * ITEMS_PER_PAGE,
-
-        page * ITEMS_PER_PAGE,
-
-    );
-
-    const totalPages =
-    Math.max(
-
-        1,
-
-        Math.ceil(
-        filteredInventory.length /
-        ITEMS_PER_PAGE,
-        ),
-
-    );
-    async function onRefresh() {
-
-    try {
-
-      setRefreshing(true);
-
-      await refresh();
-
-      setPage(1);
-
-    }
-
-    finally {
-
-      setRefreshing(false);
-
-    }
-
-  }
-
-    const openInventory = useCallback(
-
-  (item: any) => {
-
-    navigation.navigate(
-
-      'InventoryDetail',
-
-      {
-
-        inventory: item,
-
-      },
-
-    );
-
-  },
-
-  [navigation],
-
-);
-
-const renderItem = useCallback(
-
-  ({ item }: any) => (
-
-    <InventoryCard
-
-      item={item}
-
-      role={role}
-
-      onPress={() =>
-
-        openInventory(item)
-
-      }
-
-    />
-
-  ),
-
-  [openInventory, role],
-
-);
-
-  if (loading) {
-
-    return (
-
-      <SafeAreaView
-        style={{
-          flex: 1,
-          backgroundColor: COLORS.background,
-          padding: 16,
-        }}
-      >
-
-        <InventorySkeleton />
-
-        <InventorySkeleton />
-
-        <InventorySkeleton />
-
-      </SafeAreaView>
-
-    );
-
-  }
+  const { c } = useTheme();
+  const [items, setItems] = useState<InventoryBatch[] | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<Filter>('ALL');
+  const network = can.oversight(user?.role);
+
+  const load = useCallback(async () => {
+    const data = network ? await inventoryService.getNetworkInventory() : await inventoryService.getMyInventory();
+    setItems(data.filter((i) => i.quantity > 0 || network));
+  }, [network]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const classify = (i: InventoryBatch): Filter => {
+    const s = i.batch.status;
+    if (s === 'RECALLED' || s === 'REVOKED' || s === 'EXPIRED' || s === 'DESTROYED' || daysUntil(i.batch.expiryDate) <= 0) return 'UNSAFE';
+    if (daysUntil(i.batch.expiryDate) <= 30) return 'EXPIRING';
+    return 'SAFE';
+  };
+
+  const list = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return (items ?? [])
+      .filter((i) => filter === 'ALL' || classify(i) === filter)
+      .filter((i) => !q || `${i.batch.drugName} ${i.batch.batchNumber} ${i.batch.manufacturer?.name}`.toLowerCase().includes(q))
+      .sort((a, b) => new Date(a.batch.expiryDate).getTime() - new Date(b.batch.expiryDate).getTime());
+  }, [items, query, filter]);
+
+  const count = (f: Filter) => (items ?? []).filter((i) => classify(i) === f).length;
+  const totalUnits = (items ?? []).reduce((n, i) => n + i.quantity, 0);
 
   return (
-
-    <SafeAreaView
-      style={styles.container}
-    >
-
-      <FlatList
-
-        data={paginatedInventory}
-
-        keyExtractor={(item) => item.id}
-
-        initialNumToRender={5}
-
-        maxToRenderPerBatch={5}
-
-        windowSize={10}
-
-        removeClippedSubviews
-
-        showsVerticalScrollIndicator={false}
-
-        ListHeaderComponent={
-
-          <>
-
-            <PageHeader
-              title="Inventory"
-              subtitle={
-                role === 'SUPER_ADMIN'
-                  ? 'Network Inventory'
-                  : role === 'REGULATOR'
-                  ? 'Audit Inventory View'
-                  : 'My Inventory'
-              }
-              onBack={() => {
-                if (navigation.canGoBack()) {
-                  navigation.goBack();
-                } else {
-                  navigation.navigate('Home');
-                }
-              }}
-            />
-
-            <Text
-              style={styles.summaryTitle}
-            >
-              Inventory Summary
-            </Text>
-
-            <View
-              style={styles.summaryRow}
-            >
-
-              <SummaryCard
-                title="Items"
-                value={summary.totalItems}
-                icon="inventory"
-                color={COLORS.information}
-              />
-
-              <SummaryCard
-                title="Units"
-                value={summary.totalUnits}
-                icon="medication"
-                color={COLORS.primary}
-              />
-
-            </View>
-
-            <View
-              style={styles.summaryRowBottom}
-            >
-
-              <SummaryCard
-                title="Active"
-                value={summary.active}
-                icon="verified"
-                color={COLORS.success}
-              />
-
-              <SummaryCard
-                title="Revoked"
-                value={summary.revoked}
-                icon="warning"
-                color={COLORS.danger}
-              />
-
-            </View>
-
-            <TextInput
-                placeholder="Search drug or batch..."
-                value={search}
-                onChangeText={(text) => {
-                    setSearch(text);
-                    setPage(1);
-                }}
-                style={styles.searchInput}
-                />
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterContent}
-              style={styles.filterScroll}
-            >
-
-              <FilterChip
-                label="All"
-                active={status === 'ALL'}
-                onPress={() => {
-                setStatus('ALL');
-                setPage(1);
-                }}
-              />
-
-              <FilterChip
-                label="Active"
-                active={status === 'ACTIVE'}
-                onPress={() => {
-                  setStatus('ACTIVE');
-                  setPage(1);
-                }}
-              />
-
-              <FilterChip
-                label="Recalled"
-                active={status === 'RECALLED'}
-                onPress={() => {
-                  setStatus('RECALLED');
-                  setPage(1);
-                }}
-              />
-
-              <FilterChip
-                label="Revoked"
-                active={status === 'REVOKED'}
-                onPress={() => {
-                  setStatus('REVOKED');
-                  setPage(1);
-                }}
-              />
-
-              <FilterChip
-                label="Expired"
-                active={status === 'EXPIRED'}
-                onPress={() => {
-                  setStatus('EXPIRED');
-                  setPage(1);
-                }}
-              />
-
-            </ScrollView>
-
-          </>
-
-        }
-        renderItem={renderItem}
-
-        refreshControl={
-
-          <RefreshControl
-
-            refreshing={refreshing}
-
-            onRefresh={onRefresh}
-
-          />
-
-        }
-
-        ListEmptyComponent={
-
-            <EmptyState
-
-                icon="inventory"
-
-                title={
-                role === 'SUPER_ADMIN'
-                    ? 'No Inventory Across Network'
-                    : role === 'REGULATOR'
-                    ? 'No Inventory Available For Audit'
-                    : 'No Inventory Available'
-                }
-
-                subtitle={
-                role === 'SUPER_ADMIN'
-                    ? 'No inventory exists across the network.'
-                    : role === 'REGULATOR'
-                    ? 'No inventory is available for audit.'
-                    : 'Inventory assigned to your organization will appear here.'
-                }
-
-            />
-
-            }
-
-        contentContainerStyle={styles.list}
-
-        ListFooterComponent={
-
-        <View
-        style={styles.pagination}
-        >
-
-        <Text
-        onPress={()=>{
-        if(page>1){
-
-        setPage(page-1);
-
-        }
-        }}
-        style={[
-        styles.paginationButton,
-        {
-            color:
-            page === 1
-                ? COLORS.subtitle
-                : COLORS.primary,
-        },
-        ]}
-        >
-
-        ← Previous
-
-        </Text>
-
-        <Text style={styles.pageNumber}>
-            Page {page} / {totalPages}
-            </Text>
-
-        <Text
-        onPress={() => {
-            if (page < totalPages) {
-            setPage(page + 1);
-            }
-        }}
-        style={[
-            styles.paginationButton,
-            {
-            color:
-                page === totalPages
-                ? COLORS.subtitle
-                : COLORS.primary,
-            },
-        ]}
-        >
-        Next →
-        </Text>
-
-        </View>
-
-        }
-
+    <Screen scroll={false}>
+      <Header
+        title="Inventory"
+        subtitle={items ? `${totalUnits.toLocaleString('en-IN')} units · ${items.length} batches` : 'Loading…'}
+        right={can.transfer(user?.role) ? <IconButton icon="truck-fast-outline" label="New transfer" onPress={() => navigation.navigate('CreateTransfer')} /> : undefined}
+      />
+      <SearchBar value={query} onChangeText={setQuery} placeholder="Search medicine, batch or manufacturer" />
+      <View style={{ marginTop: space.md }}>
+        <Chips<Filter>
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: 'ALL', label: 'All', count: items?.length },
+            { value: 'SAFE', label: 'Safe', count: count('SAFE') },
+            { value: 'EXPIRING', label: 'Expiring', count: count('EXPIRING') },
+            { value: 'UNSAFE', label: 'Unsafe', count: count('UNSAFE') },
+          ]}
         />
+      </View>
 
-    </SafeAreaView>
-
+      {!items ? (
+        <View style={{ marginTop: space.lg }}>
+          <ListSkeleton />
+        </View>
+      ) : (
+        <FlatList
+          data={list}
+          keyExtractor={(i) => i.id}
+          contentContainerStyle={{ paddingTop: space.lg, paddingBottom: 130, gap: space.md }}
+          refreshing={refreshing}
+          onRefresh={async () => {
+            setRefreshing(true);
+            await load();
+            setRefreshing(false);
+          }}
+          ListEmptyComponent={
+            <Empty icon="package-variant" title={query || filter !== 'ALL' ? 'No matches' : 'No stock yet'} message={query || filter !== 'ALL' ? 'Try a different search or filter.' : 'Batches transferred to you will appear here.'} />
+          }
+          renderItem={({ item }) => {
+            const days = daysUntil(item.batch.expiryDate);
+            const cls = classify(item);
+            const accent = cls === 'UNSAFE' ? c.danger : cls === 'EXPIRING' ? c.warning : c.success;
+            return (
+              <Card onPress={() => navigation.navigate('InventoryDetail', { item })} padded={false} style={{ overflow: 'hidden' }}>
+                <View style={[styles.accent, { backgroundColor: accent }]} />
+                <View style={{ padding: space.lg, paddingLeft: space.lg + 4 }}>
+                  <View style={styles.rowTop}>
+                    <View style={[styles.pill, { backgroundColor: c.primarySoft }]}>
+                      <Icon name="pill" size={22} color={c.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <T variant="title" numberOfLines={1}>
+                        {item.batch.drugName}
+                      </T>
+                      <T variant="small" muted numberOfLines={1}>
+                        {item.batch.batchNumber} · {item.batch.manufacturer?.name}
+                      </T>
+                    </View>
+                    <Badge status={item.batch.status === 'ACTIVE' && cls === 'EXPIRING' ? 'WARNING' : item.batch.status} label={item.batch.status === 'ACTIVE' ? (cls === 'EXPIRING' ? 'Expiring' : 'Safe') : undefined} size="sm" />
+                  </View>
+                  <View style={[styles.meta, { borderTopColor: c.border }]}>
+                    <Meta icon="cube-outline" label="Units" value={item.quantity.toLocaleString('en-IN')} />
+                    <Meta icon="calendar-clock" label="Expiry" value={fmtDate(item.batch.expiryDate)} />
+                    <Meta
+                      icon="timer-sand"
+                      label="Left"
+                      value={days <= 0 ? 'Expired' : `${days}d`}
+                      color={statusTone(cls === 'UNSAFE' ? 'BLOCKED' : cls === 'EXPIRING' ? 'WARNING' : 'SAFE') === 'success' ? undefined : accent}
+                    />
+                  </View>
+                  {network && item.owner && (
+                    <T variant="small" muted style={{ marginTop: 8 }}>
+                      Held by {item.owner.fullName}
+                    </T>
+                  )}
+                </View>
+              </Card>
+            );
+          }}
+        />
+      )}
+    </Screen>
   );
+}
 
+function Meta({ icon, label, value, color }: { icon: any; label: string; value: string; color?: string }) {
+  const { c } = useTheme();
+  return (
+    <View style={{ flex: 1, gap: 2 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <Icon name={icon} size={14} color={c.textMuted} />
+        <T variant="tiny" muted>
+          {label.toUpperCase()}
+        </T>
+      </View>
+      <T variant="bodyStrong" color={color}>
+        {value}
+      </T>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-
-  container: {
-
-    flex: 1,
-
-    backgroundColor: COLORS.background,
-
-  },
-
-  list: {
-
-    paddingBottom: 30,
-
-  },
-
-  emptyContainer: {
-
-    marginTop: 80,
-
-    alignItems: 'center',
-
-  },
-
-  emptyTitle: {
-
-    fontSize: 22,
-
-    fontWeight: '700',
-
-    color: COLORS.text,
-
-  },
-
-  emptySubtitle: {
-
-    marginTop: 8,
-
-    textAlign: 'center',
-
-    color: COLORS.subtitle,
-
-    paddingHorizontal: 40,
-
-    lineHeight: 22,
-
-  },
-
-  summaryTitle: {
-  fontSize: 22,
-  fontWeight: '700',
-  marginHorizontal: 16,
-  marginBottom: 15,
-},
-
-summaryRow: {
-  flexDirection: 'row',
-  marginHorizontal: 16,
-  marginBottom: 12,
-},
-
-summaryRowBottom: {
-  flexDirection: 'row',
-  marginHorizontal: 16,
-  marginBottom: 20,
-},
-
-searchInput: {
-  backgroundColor: 'white',
-  padding: 15,
-  borderRadius: 14,
-  marginHorizontal: 16,
-  marginBottom: 18,
-  borderWidth: 1,
-  borderColor: COLORS.border,
-},
-
-filterContent: {
-  paddingHorizontal: 16,
-  alignItems: 'center',
-  paddingVertical: 6,
-},
-
-filterScroll: {
-  marginBottom: 18,
-  minHeight: 56,
-},
-
-pagination: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  paddingHorizontal: 20,
-  paddingVertical: 25,
-},
-
-paginationButton: {
-  fontSize: 16,
-  fontWeight: '700',
-},
-
-pageNumber: {
-  fontWeight: '700',
-  fontSize: 16,
-},
-
+  accent: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4 },
+  rowTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  pill: { width: 44, height: 44, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  meta: { flexDirection: 'row', marginTop: space.md, paddingTop: space.md, borderTopWidth: StyleSheet.hairlineWidth },
 });
