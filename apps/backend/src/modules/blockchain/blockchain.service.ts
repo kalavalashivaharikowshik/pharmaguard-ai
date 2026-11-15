@@ -4,6 +4,7 @@ import {
 } from '@nestjs/common';
 import { ethers } from 'ethers';
 import { ChainService } from '../chain/chain.service';
+import { computeBatchHash } from '../chain/batch-hash';
 import { ViolationsService } from '../infra/violations.service';
 
 import { PrismaService } from '../../prisma/prisma.service';
@@ -39,28 +40,7 @@ export class BlockchainService {
   async generateBatchHash(
     batch: any,
   ) {
-
-    const payload =
-      JSON.stringify({
-        batchNumber:
-          batch.batchNumber,
-
-        drugName:
-          batch.drugName,
-
-        manufactureDate:
-          batch.manufactureDate,
-
-        expiryDate:
-          batch.expiryDate,
-
-        quantity:
-          batch.quantity,
-      });
-
-    return ethers.utils.id(
-      payload,
-    );
+    return computeBatchHash(batch);
   }
 
   async registerBatch(
