@@ -18,10 +18,12 @@ import AnalyticsPieChart from '../../components/analytics/AnalyticsPieChart';
 
 
 import { useAnalytics } from '../../hooks/useAnalytics';
+import { useAuth } from '../../context/AuthContext';
+import InsightsScreen from '../ai/InsightsScreen';
 
 import { COLORS } from '../../utils/theme';
 
-export default function AnalyticsScreen() {
+function NetworkAnalyticsScreen() {
 
   const {
 
@@ -287,4 +289,13 @@ export default function AnalyticsScreen() {
 
   );
 
+}
+
+/** Oversight roles get network analytics; other roles get their AI insights. */
+export default function AnalyticsScreen() {
+  const { user } = useAuth();
+  if (user?.role === 'SUPER_ADMIN' || user?.role === 'REGULATOR') {
+    return <NetworkAnalyticsScreen />;
+  }
+  return <InsightsScreen />;
 }

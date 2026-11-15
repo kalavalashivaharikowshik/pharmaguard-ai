@@ -1,10 +1,9 @@
 import axios from 'axios';
 
+import { API_URL } from '../config';
+
 export const api = axios.create({
-
-  baseURL:
-    'http://10.27.3.125:3000',
-
-  timeout: 10000,
-
+  baseURL: API_URL,
+  // Free hosting tiers can take ~30s to wake up on the first request.
+  timeout: 30000,
 });

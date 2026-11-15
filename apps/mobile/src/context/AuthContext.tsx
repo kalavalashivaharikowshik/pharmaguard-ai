@@ -17,6 +17,7 @@ import { tokenStorage } from '../storage/tokenStorage';
 import type { User } from '../types/auth';
 import { registerLogoutHandler } from '../utils/sessionManager';
 import { firebaseMessagingService } from '../services/firebaseMessagingService';
+import { biometricService } from '../services/biometricService';
 
 interface AuthContextType {
   loading: boolean;
@@ -24,7 +25,9 @@ interface AuthContextType {
   initializing: boolean;
 
   authenticated: boolean;
-
+  /** True when a remembered session is waiting for fingerprint / Face ID. */
+  locked: boolean;
+  unlock(): Promise<boolean>;
   user: User | null;
 
   login(
@@ -69,6 +72,14 @@ export function AuthProvider({
     null,
   );
 
+  const [locked, setLocked] = useState(false);
+
+  async function unlock() {
+    const result = await biometricService.authenticate();
+    if (result.success) setLocked(false);
+    return result.success;
+  }
+
   useEffect(() => {
 
     registerLogoutHandler(logout);
@@ -107,8 +118,14 @@ export function AuthProvider({
           await authService.me();
 
         setUser(user);
-
         setAuthenticated(true);
+        // Biometric unlock for remembered sessions (toggle in Settings).
+        if (
+          (await biometricService.isEnabled()) &&
+          (await biometricService.isAvailable())
+        ) {
+          setLocked(true);
+        }
 
         await firebaseMessagingService.registerDevice();
 
@@ -236,6 +253,8 @@ export function AuthProvider({
 
     await tokenStorage.clear();
 
+    setLocked(false);
+
     setAuthenticated(false);
 
     setUser(null);
@@ -259,6 +278,8 @@ export function AuthProvider({
         loading,
         initializing,
         authenticated,
+        locked,
+        unlock,
         user,
         login,
         logout,
