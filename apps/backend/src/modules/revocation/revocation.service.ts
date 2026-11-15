@@ -12,6 +12,8 @@ import {
 
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
+import { ChainService } from '../chain/chain.service';
+import { DisposalService } from '../disposal/disposal.service';
 
 @Injectable()
 export class RevocationService {
@@ -21,6 +23,10 @@ export class RevocationService {
     private notificationsService: NotificationsService,
 
     private auditService: AuditService,
+
+    private chain: ChainService,
+
+    private disposal: DisposalService,
   ) {}
 
   async revokeBatch(
@@ -64,6 +70,23 @@ export class RevocationService {
         },
 
       });
+
+    // Self-destructing digital identity: revoke permanently on the blockchain too.
+    const revocationTxHash =
+      await this.chain.revokeBatch(
+        revokedBatch.batchNumber,
+        reason,
+      );
+
+    if (revocationTxHash) {
+      await this.prisma.batch.update({
+        where: { id: batchId },
+        data: { revocationTxHash },
+      });
+    }
+
+    // Everyone still holding this stock gets a return / disposal notice.
+    await this.disposal.issueNotices(batchId, reason);
 
       let title = 'Batch Revoked';
 

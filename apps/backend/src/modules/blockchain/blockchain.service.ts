@@ -3,9 +3,10 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { ethers } from 'ethers';
+import { ChainService } from '../chain/chain.service';
+import { ViolationsService } from '../infra/violations.service';
 
 import { PrismaService } from '../../prisma/prisma.service';
-import { BatchRegistryABI } from './abi';
 import { RevocationService }
 from '../revocation/revocation.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -19,8 +20,6 @@ import {
 @Injectable()
 export class BlockchainService {
 
-  private contract;
-
   constructor(
     private prisma: PrismaService,
 
@@ -31,26 +30,11 @@ export class BlockchainService {
     NotificationsService,
 
     private auditService: AuditService,
-  ) {
 
-    const provider =
-      new ethers.providers.JsonRpcProvider(
-        process.env.BLOCKCHAIN_RPC_URL,
-      );
+    private chain: ChainService,
 
-    const wallet =
-      new ethers.Wallet(
-        process.env.BLOCKCHAIN_PRIVATE_KEY!,
-        provider,
-      );
-
-    this.contract =
-      new ethers.Contract(
-        process.env.BLOCKCHAIN_CONTRACT_ADDRESS!,
-        BatchRegistryABI,
-        wallet,
-      );
-  }
+    private violations: ViolationsService,
+  ) {}
 
   async generateBatchHash(
     batch: any,
@@ -84,14 +68,15 @@ export class BlockchainService {
     batchHash: string,
   ) {
 
-    const tx =
-      await this.contract.registerBatch(
+    const transactionHash =
+      await this.chain.registerBatch(
         batchNumber,
         batchHash,
       );
 
-    const receipt =
-      await tx.wait();
+    if (!transactionHash) {
+      return { txHash: null };
+    }
 
     await this.auditService.log({
 
@@ -107,7 +92,7 @@ export class BlockchainService {
 
         batchNumber,
 
-        transactionHash: receipt.transactionHash,
+        transactionHash,
 
       },
 
@@ -115,35 +100,18 @@ export class BlockchainService {
 
     return {
       txHash:
-        receipt.transactionHash,
+        transactionHash,
     };
 
   }
   async getBatch(
     batchNumber: string,
   ) {
-    try {
+    return this.chain.getBatch(batchNumber);
+  }
 
-      const batch =
-        await this.contract.getBatch(
-          batchNumber,
-        );
-
-      return {
-        batchNumber: batch[0],
-        batchHash: batch[1],
-        registeredAt: Number(batch[2]),
-      };
-
-    } catch {
-
-      return {
-        batchNumber,
-        batchHash: '',
-        registeredAt: 0,
-      };
-
-    }
+  async getStats() {
+    return this.chain.stats();
   }
 
   async verifyBatch(
@@ -402,6 +370,17 @@ export class BlockchainService {
 
   });
 
+        await this.violations.record({
+          type: 'TAMPER_DETECTED',
+          severity: 'CRITICAL',
+          description: `Batch ${dbBatch.batchNumber} data no longer matches its blockchain fingerprint.`,
+          batchId: dbBatch.id,
+          metadata: {
+            expectedHash: chainBatch.batchHash,
+            currentHash,
+          },
+        });
+
         await this.revocationService
           .revokeBatch(
             dbBatch.id,
@@ -424,6 +403,18 @@ export class BlockchainService {
         verified
           ? 'NONE'
           : 'BATCH_REVOKED',
+
+      revokedOnChain:
+        !!chainBatch.revoked,
+
+      revocationReason:
+        chainBatch.revocationReason || dbBatch.revocationReason,
+
+      network:
+        this.chain.network,
+
+      contractAddress:
+        this.chain.contractAddress,
       
       batch: dbBatch,
     };

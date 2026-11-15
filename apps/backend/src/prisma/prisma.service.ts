@@ -14,6 +14,8 @@ export class PrismaService
   constructor() {
     super({
       adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+      // Never send password hashes to clients, even through nested includes.
+      omit: { user: { password: true } },
     });
   }
 

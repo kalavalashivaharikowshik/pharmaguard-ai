@@ -17,6 +17,18 @@ export class ComplianceService {
     private notificationsService: NotificationsService,
   ) {}
 
+  getViolations(type?: string) {
+    return this.prisma.violation.findMany({
+      where: type ? { type: type as any } : {},
+      include: {
+        batch: { select: { id: true, batchNumber: true, drugName: true } },
+        user: { select: { id: true, fullName: true, organizationName: true, role: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+  }
+
   async getSummary() {
     const totalBatches =
       await this.prisma.batch.count();

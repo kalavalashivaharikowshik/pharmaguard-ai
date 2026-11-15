@@ -1,11 +1,15 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { AppController } from './app.controller';
-import { AppService } from './app.service';
 
 import { PrismaModule } from './prisma/prisma.module';
+import { ChainModule } from './modules/chain/chain.module';
+import { InfraModule } from './modules/infra/infra.module';
+import { DisposalModule } from './modules/disposal/disposal.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { ManufacturersModule } from './modules/manufacturers/manufacturers.module';
@@ -38,7 +42,13 @@ import { ReportsModule } from './modules/reports/reports.module';
 
     ScheduleModule.forRoot(),
 
+    // Global rate limit: 300 requests / minute per IP (login has a stricter limit).
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
+
+    InfraModule,
+
     PrismaModule,
+    ChainModule,
     FirebaseModule,
     DeviceTokensModule,
     AuthModule,
@@ -62,6 +72,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     AnalyticsModule,
     ScanHistoryModule,
     ReportsModule,
+    DisposalModule,
   ],
 
   controllers: [
@@ -69,7 +80,7 @@ import { ReportsModule } from './modules/reports/reports.module';
   ],
 
   providers: [
-    AppService,
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule {}

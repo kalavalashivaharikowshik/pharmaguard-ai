@@ -2,7 +2,6 @@ import {
   Controller,
   Get,
   Param,
-  Post,
 } from '@nestjs/common';
 
 import { BlockchainService } from './blockchain.service';
@@ -14,14 +13,17 @@ export class BlockchainController {
     private blockchainService: BlockchainService,
   ) {}
 
-  @Post('test')
-  async test() {
+  @Get('stats')
+  stats() {
+    return this.blockchainService.getStats();
+  }
 
-    return this.blockchainService
-      .registerBatch(
-        'TEST-001',
-        'HASH123',
-      );
+  @Get('batch/:batchNumber')
+  getBatch(
+    @Param('batchNumber')
+    batchNumber: string,
+  ) {
+    return this.blockchainService.getBatch(batchNumber);
   }
 
   @Get(

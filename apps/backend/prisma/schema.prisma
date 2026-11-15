@@ -29,6 +29,23 @@ enum BatchStatus {
   EXPIRED
   TRANSFERRED
   REVOKED
+  DESTROYED
+}
+
+enum DisposalStatus {
+  NOTICE_ISSUED
+  RETURNED
+  DESTROYED
+}
+
+enum ViolationType {
+  EXPIRED_SALE_ATTEMPT
+  RECALLED_SALE_ATTEMPT
+  REVOKED_SALE_ATTEMPT
+  TAMPER_DETECTED
+  UNAUTHORIZED_TRANSFER
+  RECALL_OVERDUE
+  UNKNOWN_PRODUCT_SCAN
 }
 
 enum RecallSeverity {
@@ -239,6 +256,18 @@ model Batch {
 
   revocationReason String?
 
+  revocationTxHash String?
+
+  category String?
+
+  description String?
+
+  storageConditions String?
+
+  disposals DisposalRecord[]
+
+  violations Violation[]
+
   manufacturerId String
 
   manufacturer Manufacturer @relation(fields: [manufacturerId], references: [id])
@@ -273,7 +302,15 @@ model Recall {
 
   tasks RecallTask[]
 
+  dueDate DateTime?
+
+  completedAt DateTime?
+
+  aiSummary String?
+
   createdAt DateTime @default(now())
+
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 model Notification {
@@ -399,6 +436,12 @@ model RecallTask {
 
   notes String?
 
+  dueDate DateTime?
+
+  completedAt DateTime?
+
+  escalatedAt DateTime?
+
   createdAt DateTime @default(now())
 
   recall Recall @relation(fields: [recallId], references: [id])
@@ -429,6 +472,20 @@ model User {
 
   manufacturer Manufacturer? @relation(fields: [manufacturerId], references: [id])
 
+  address String?
+
+  city String?
+
+  latitude Float?
+
+  longitude Float?
+
+  preferences Json?
+
+  disposals DisposalRecord[]
+
+  violations Violation[]
+
   notifications Notification[]
 
   deviceTokens DeviceToken[]
@@ -452,3 +509,57 @@ model User {
   updatedAt DateTime @updatedAt
 }
 
+
+model DisposalRecord {
+  id String @id @default(uuid())
+
+  batchId String
+
+  batch Batch @relation(fields: [batchId], references: [id])
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id])
+
+  quantity Int
+
+  reason String
+
+  status DisposalStatus @default(NOTICE_ISSUED)
+
+  notes String?
+
+  evidence String?
+
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([batchId, userId])
+}
+
+model Violation {
+  id String @id @default(uuid())
+
+  type ViolationType
+
+  severity NotificationPriority @default(HIGH)
+
+  description String
+
+  batchId String?
+
+  batch Batch? @relation(fields: [batchId], references: [id])
+
+  userId String?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

@@ -28,6 +28,19 @@ export class FirebaseService {
       return;
     }
 
+    // Hosting: set FIREBASE_SERVICE_ACCOUNT to the JSON contents of the key file.
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      try {
+        initializeApp({
+          credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)),
+        });
+        this.logger.log('Firebase initialized from environment.');
+      } catch (err) {
+        this.logger.warn(`Invalid FIREBASE_SERVICE_ACCOUNT: ${(err as Error).message}`);
+      }
+      return;
+    }
+
     const keyPath = path.join(
       process.cwd(),
       'firebase',
@@ -61,6 +74,10 @@ export class FirebaseService {
       'Firebase initialized successfully.',
     );
 
+  }
+
+  get enabled(): boolean {
+    return getApps().length > 0;
   }
 
   getMessaging() {
