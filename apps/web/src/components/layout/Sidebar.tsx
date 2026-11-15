@@ -88,8 +88,8 @@ export default function Sidebar({ open, mobileOpen, onClose }: SidebarProps) {
       >
         <div className="h-20 flex items-center justify-between gap-3 px-5 border-b border-[#12345a]">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="h-10 w-10 shrink-0 rounded-xl bg-[#2E8B57] flex items-center justify-center">
-              <ShieldCheck size={22} />
+            <div className="h-10 w-10 shrink-0 rounded-xl bg-white/10 flex items-center justify-center">
+              <img src="/logo-mark.svg" alt="PharmaGuard AI" className="h-9 w-9" />
             </div>
             {expanded && (
               <div className="min-w-0">
