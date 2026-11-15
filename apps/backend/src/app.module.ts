@@ -10,6 +10,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ChainModule } from './modules/chain/chain.module';
 import { InfraModule } from './modules/infra/infra.module';
 import { DisposalModule } from './modules/disposal/disposal.module';
+import { ScanModule } from './modules/scan/scan.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { ManufacturersModule } from './modules/manufacturers/manufacturers.module';
@@ -73,6 +74,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     ScanHistoryModule,
     ReportsModule,
     DisposalModule,
+    ScanModule,
   ],
 
   controllers: [
