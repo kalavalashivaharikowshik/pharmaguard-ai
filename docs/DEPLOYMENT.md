@@ -20,7 +20,13 @@ Do the steps in this order. Total time is about 45 minutes.
 
 Without a key the AI features still work using the built-in rule engine.
 
-## 2. Deploy the smart contract to Sepolia (15 min)
+## 2. Blockchain: nothing to do (optional Sepolia)
+
+By default the API runs its **own embedded Ethereum chain** inside the server: on start-up it deploys `BatchRegistry`, re-anchors existing batches, and records every new batch and revocation there. No wallet, keys or test ETH needed. Leave the `BLOCKCHAIN_*` variables empty.
+
+Trade-off: the embedded chain is private to your server, so transactions are not visible on a public explorer. If you want public, verifiable transactions on Etherscan, deploy to Sepolia instead (below) and fill in the three `BLOCKCHAIN_*` variables in step 3.
+
+### Optional: deploy to Sepolia (15 min)
 
 You need a wallet that holds a little free Sepolia test ETH.
 
@@ -52,9 +58,7 @@ The API pays gas for every batch registration and revocation from this wallet. E
    |---|---|
    | `FRONTEND_URL` | your Vercel URL from step 4 (you can come back and set it after) |
    | `GEMINI_API_KEY` | key from step 1 |
-   | `BLOCKCHAIN_RPC_URL` | Alchemy Sepolia URL |
-   | `BLOCKCHAIN_PRIVATE_KEY` | the project wallet's private key |
-   | `BLOCKCHAIN_CONTRACT_ADDRESS` | address from step 2 |
+   | `BLOCKCHAIN_RPC_URL`, `BLOCKCHAIN_PRIVATE_KEY`, `BLOCKCHAIN_CONTRACT_ADDRESS` | leave empty for the embedded chain, or fill in from the optional Sepolia step |
    | `SMTP_*`, `TWILIO_*`, `FIREBASE_SERVICE_ACCOUNT` | optional, leave empty to skip email / SMS / push |
 
 4. Click **Apply**. The first build takes about 5 minutes. Migrations run automatically, and `SEED_DEMO_DATA=true` creates the demo accounts.

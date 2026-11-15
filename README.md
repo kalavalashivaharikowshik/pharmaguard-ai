@@ -12,7 +12,7 @@ PharmaGuard AI tracks every medicine batch from manufacturer to patient, stores 
 
 | Area | What it does |
 |---|---|
-| **Blockchain traceability** | Each batch gets a keccak256 fingerprint (number, drug, dates, quantity) stored in the `BatchRegistry` smart contract. Verification recomputes the hash from the database and compares it with the chain, so any database edit is detected as tampering. |
+| **Blockchain traceability** | Runs on an embedded in-app Ethereum chain by default (zero setup) or any EVM network such as Sepolia. Each batch gets a keccak256 fingerprint (number, drug, dates, quantity) stored in the `BatchRegistry` smart contract. Verification recomputes the hash from the database and compares it with the chain, so any database edit is detected as tampering. |
 | **Self-destructing digital identity** | Expired, recalled or tampered batches are revoked in the database **and on-chain** (`revokeBatch`). After that, QR verification fails, sales and transfers are blocked, and every holder gets a return/disposal notice. |
 | **Smart-contract sale blocking** | At the counter, a QR scan checks blockchain integrity, on-chain revocation, recall status, expiry and stock before approving a sale. Every blocked attempt is written to the violation log. |
 | **Agentic AI recall management** | A LangGraph workflow of five agents (Recall → Inventory → Compliance → Notification → Summary) locates every unit, creates a task per holder with a severity-based deadline (24h–7d), notifies them, and writes a Gemini summary. A scheduler escalates overdue tasks to regulators and closes the recall automatically when everyone is done. |
