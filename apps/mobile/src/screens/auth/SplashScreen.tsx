@@ -1,135 +1,16 @@
-import {
-  ActivityIndicator,
-  Text,
-  StyleSheet,
-} from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
-
-import {
-  MaterialIcons,
-} from '@expo/vector-icons';
-
-import {
-  COLORS,
-} from '../../utils/theme';
-
+import { AuthBackground, LogoMark, Wordmark } from './AuthBrand';
+import { space } from '../../ui/theme';
 
 export default function SplashScreen() {
-
   return (
-
-    <SafeAreaView
-
-      style={styles.container}
-
-    >
-
-
-      <MaterialIcons
-
-        name="local-pharmacy"
-
-        size={70}
-
-        color="white"
-
-      />
-
-
-
-      <Text
-
-        style={styles.title}
-
-      >
-
-        PharmaGuard AI
-
-      </Text>
-
-
-
-      <Text
-
-        style={styles.subtitle}
-
-      >
-
-        Pharmaceutical Safety Platform
-
-      </Text>
-
-
-
-      <ActivityIndicator
-
-        size="large"
-
-        color="white"
-
-        style={styles.loader}
-
-      />
-
-
-    </SafeAreaView>
-
+    <AuthBackground>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.xl }}>
+        <LogoMark size={96} />
+        <Wordmark />
+        <ActivityIndicator color="#FFFFFF" style={{ marginTop: space.xl }} />
+      </View>
+    </AuthBackground>
   );
-
 }
-
-
-
-const styles = StyleSheet.create({
-
-
-  container: {
-
-    flex: 1,
-
-    justifyContent: 'center',
-
-    alignItems: 'center',
-
-    backgroundColor: COLORS.primary,
-
-  },
-
-
-  title: {
-
-    color: 'white',
-
-    fontSize: 34,
-
-    fontWeight: '700',
-
-    marginTop: 20,
-
-  },
-
-
-  subtitle: {
-
-    color: 'white',
-
-    marginTop: 10,
-
-    fontSize: 16,
-
-    opacity: 0.9,
-
-  },
-
-
-  loader: {
-
-    marginTop: 30,
-
-  },
-
-
-});

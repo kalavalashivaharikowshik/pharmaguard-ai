@@ -1,508 +1,165 @@
-import {
-  ScrollView,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-} from 'react-native';
-
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
-
-import {
-  useEffect,
-  useState,
-  useCallback,
-  useMemo,
-} from 'react';
-
-import {
-  useNavigation,
-  useRoute,
-} from '@react-navigation/native';
-
+import { useCallback, useEffect, useState } from 'react';
+import { View } from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
 
-import {
-  MaterialIcons,
-} from '@expo/vector-icons';
+import { api } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { inventoryService } from '../../services/inventoryService';
+import { Badge, Button, Card, GradientCard, Header, Icon, KeyValue, ProgressBar, Screen, Skeleton, T, haptic } from '../../ui/components';
+import { space, useTheme } from '../../ui/theme';
+import { can, daysUntil, errMsg, fmtDate } from '../../ui/format';
 
-import {
-  inventoryService,
-} from '../../services/inventoryService';
-
-import {
-  COLORS,
-} from '../../utils/theme';
-
-import type {
-  BlockchainVerification,
-} from '../../types/inventory';
-
-import PageHeader
-  from '../../components/common/PageHeader';
-
+/** Batch detail: shelf life, blockchain verification, QR code and actions. */
 export default function InventoryDetailScreen() {
+  const navigation = useNavigation<any>();
+  const { params } = useRoute<any>();
+  const { user } = useAuth();
+  const { c } = useTheme();
+  const [batch, setBatch] = useState<any>(params?.item?.batch ?? null);
+  const units: number | undefined = params?.item?.quantity;
+  const [verifying, setVerifying] = useState(false);
+  const [chain, setChain] = useState<any>(null);
 
-  const route =
-    useRoute<any>();
+  const batchId = params?.item?.batch?.id ?? params?.batchId;
 
-  const navigation =
-    useNavigation<any>();
-
-  const {
-    inventory,
-  } = route.params;
-
-  const [
-    verification,
-    setVerification,
-  ] = useState<BlockchainVerification>();
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(false);
-
-  const batch =
-    inventory.batch;
-
-  const verify = useCallback(async () => {
-
+  const load = useCallback(async () => {
+    if (!batchId) return;
     try {
-
-      setLoading(true);
-
-      const data =
-        await inventoryService.verifyBatch(
-          inventory.batch.batchNumber,
-        );
-
-      setVerification(data);
-
-      Toast.show({
-
-        type:
-          data.verified
-            ? 'success'
-            : 'error',
-
-        text1:
-          data.verified
-            ? 'Batch Verified'
-            : 'Batch Tampered',
-
-      });
-
+      const res = await api.get(`/batches/${batchId}`);
+      setBatch(res.data);
+    } catch {
+      /* keep what we have */
     }
-
-    finally {
-
-      setLoading(false);
-
-    }
-
-  }, [inventory.batch.batchNumber]);
+  }, [batchId]);
 
   useEffect(() => {
+    load();
+  }, [load]);
 
-    verify();
+  const verify = async () => {
+    if (!batch) return;
+    setVerifying(true);
+    try {
+      const r = await inventoryService.verifyBatch(batch.batchNumber);
+      setChain(r);
+      if (r.verified) haptic.success();
+      else haptic.error();
+    } catch (e) {
+      Toast.show({ type: 'error', text1: 'Verification failed', text2: errMsg(e) });
+    } finally {
+      setVerifying(false);
+    }
+  };
 
-  }, [verify]);
-
-  const daysRemaining = useMemo(() => {
-
-    const expiry =
-      new Date(
-        batch.expiryDate,
-      );
-
-    const today =
-      new Date();
-
-    return Math.ceil(
-
-      (
-        expiry.getTime() -
-        today.getTime()
-      ) / 86400000,
-
+  if (!batch) {
+    return (
+      <Screen>
+        <Header title="Batch" onBack={() => navigation.goBack()} />
+        <Skeleton height={160} />
+        <Skeleton height={220} style={{ marginTop: space.lg }} />
+      </Screen>
     );
+  }
 
-  }, [batch.expiryDate]);
-
-  const manufactureDate =
-    useMemo(
-
-      () =>
-        new Date(
-          batch.manufactureDate,
-        ).toLocaleDateString(),
-
-      [batch.manufactureDate],
-
-    );
-
-  const expiryDate =
-    useMemo(
-
-      () =>
-        new Date(
-          batch.expiryDate,
-        ).toLocaleDateString(),
-
-      [batch.expiryDate],
-
-    );
-
-  const openQRCode =
-    useCallback(() => {
-
-      navigation.navigate(
-        'QRCode',
-        {
-          batch,
-        },
-      );
-
-    }, [
-      navigation,
-      batch,
-    ]);
+  const total = new Date(batch.expiryDate).getTime() - new Date(batch.manufactureDate).getTime();
+  const used = Date.now() - new Date(batch.manufactureDate).getTime();
+  const life = Math.max(0, Math.min(100, 100 - (used / total) * 100));
+  const days = daysUntil(batch.expiryDate);
 
   return (
+    <Screen>
+      <Header title="Batch details" onBack={() => navigation.goBack()} right={<Badge status={batch.status} />} />
 
-    <SafeAreaView
-      style={styles.container}
-    >
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={
-          styles.content
-        }
-      >
-
-        <PageHeader
-          title="Inventory Details"
-          subtitle="View complete batch information"
-          onBack={() => navigation.goBack()}
-        />
-
-        <View
-          style={styles.iconContainer}
-        >
-
-          <View
-            style={styles.iconCircle}
-          >
-
-            <MaterialIcons
-              name="inventory"
-              size={46}
-              color={COLORS.primary}
-            />
-
+      <GradientCard>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="pill" size={28} color="#FFF" />
           </View>
-
-        </View>
-
-        <View
-          style={styles.card}
-        >
-
-          <Text
-            style={styles.title}
-          >
-            {batch.drugName}
-          </Text>
-
-          <Text style={styles.label}>
-            Batch Number
-          </Text>
-
-          <Text style={styles.value}>
-            {batch.batchNumber}
-          </Text>
-
-          <Text style={styles.label}>
-            Manufacturer
-          </Text>
-
-          <Text style={styles.value}>
-            {batch.manufacturer.name}
-          </Text>
-
-          <Text style={styles.label}>
-            Quantity
-          </Text>
-
-          <Text style={styles.value}>
-            {inventory.quantity.toLocaleString()} Units
-          </Text>
-
-          <Text style={styles.label}>
-            Status
-          </Text>
-
-          <Text style={styles.value}>
-            {batch.status}
-          </Text>
-
-          <Text style={styles.label}>
-            Manufactured
-          </Text>
-
-          <Text style={styles.value}>
-            {manufactureDate}
-          </Text>
-
-          <Text style={styles.label}>
-            Expiry
-          </Text>
-
-          <Text style={styles.value}>
-            {expiryDate}
-          </Text>
-
-          <Text
-            style={[
-              styles.daysRemaining,
-              {
-                color:
-                  daysRemaining > 180
-                    ? COLORS.success
-                    : daysRemaining > 30
-                    ? COLORS.warning
-                    : COLORS.danger,
-              },
-            ]}
-          >
-            {
-              daysRemaining < 0
-                ? 'Expired'
-                : `${daysRemaining} Days Remaining`
-            }
-          </Text>
-
-          <Text style={styles.label}>
-            QR Code
-          </Text>
-
-          <Text style={styles.value}>
-            {batch.qrCode ?? '-'}
-          </Text>
-
-        </View>
-
-        <View
-          style={styles.card}
-        >
-
-          <View
-            style={styles.statusRow}
-          >
-
-            <MaterialIcons
-              name={
-                verification?.verified
-                  ? 'verified'
-                  : 'error'
-              }
-              size={30}
-              color={
-                verification?.verified
-                  ? COLORS.success
-                  : COLORS.danger
-              }
-            />
-
-            <Text
-              style={styles.statusTitle}
-            >
-              Blockchain Status
-            </Text>
-
+          <View style={{ flex: 1 }}>
+            <T variant="h2" color="#FFF" numberOfLines={2}>
+              {batch.drugName}
+            </T>
+            <T color="rgba(255,255,255,0.85)">{batch.batchNumber}</T>
           </View>
-
-          <Text
-            style={[
-              styles.verifyStatus,
-              {
-                color:
-                  verification?.verified
-                    ? COLORS.success
-                    : COLORS.danger,
-              },
-            ]}
-          >
-            {
-              verification?.verified
-                ? 'Verified'
-                : 'Verification Failed'
-            }
-          </Text>
-
-          <Text
-            style={styles.hashLabel}
-          >
-            Current Hash
-          </Text>
-
-          <Text
-            numberOfLines={2}
-          >
-            {verification?.currentHash}
-          </Text>
-
-          <Text
-            style={styles.hashLabel}
-          >
-            Blockchain Hash
-          </Text>
-
-          <Text
-            numberOfLines={2}
-          >
-            {verification?.blockchainHash}
-          </Text>
-
-          <TouchableOpacity
-            onPress={verify}
-            disabled={loading}
-            style={styles.primaryButton}
-          >
-
-            <Text
-              style={styles.buttonText}
-            >
-              {
-                loading
-                  ? 'Verifying...'
-                  : 'Verify Again'
-              }
-            </Text>
-
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={openQRCode}
-            style={styles.secondaryButton}
-          >
-
-            <Text
-              style={styles.buttonText}
-            >
-              View QR Code
-            </Text>
-
-          </TouchableOpacity>
-
         </View>
+        <View style={{ flexDirection: 'row', marginTop: space.lg }}>
+          <View style={{ flex: 1 }}>
+            <T variant="h3" color="#FFF">
+              {units !== undefined ? units.toLocaleString('en-IN') : batch.quantity?.toLocaleString('en-IN')}
+            </T>
+            <T variant="tiny" color="rgba(255,255,255,0.75)">
+              {units !== undefined ? 'UNITS YOU HOLD' : 'UNITS PRODUCED'}
+            </T>
+          </View>
+          <View style={{ flex: 1 }}>
+            <T variant="h3" color="#FFF">
+              {days <= 0 ? 'Expired' : `${days} days`}
+            </T>
+            <T variant="tiny" color="rgba(255,255,255,0.75)">
+              SHELF LIFE LEFT
+            </T>
+          </View>
+        </View>
+      </GradientCard>
 
-      </ScrollView>
+      <Card style={{ marginTop: space.lg }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+          <T variant="title">Shelf life</T>
+          <T variant="small" muted>
+            {Math.round(life)}% remaining
+          </T>
+        </View>
+        <ProgressBar value={life} tone={life < 10 ? 'danger' : life < 25 ? 'warning' : 'success'} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+          <T variant="small" muted>
+            {fmtDate(batch.manufactureDate)}
+          </T>
+          <T variant="small" muted>
+            {fmtDate(batch.expiryDate)}
+          </T>
+        </View>
+      </Card>
 
-    </SafeAreaView>
+      <Card style={{ marginTop: space.md }}>
+        <T variant="title" style={{ marginBottom: 4 }}>
+          Information
+        </T>
+        <KeyValue label="Manufacturer" value={batch.manufacturer?.name} />
+        {batch.category ? <KeyValue label="Category" value={batch.category} /> : null}
+        {batch.storageConditions ? <KeyValue label="Storage" value={batch.storageConditions} /> : null}
+        <KeyValue label="QR code" value={batch.qrCode} mono />
+        {batch.revocationReason ? <KeyValue label="Revocation" value={batch.revocationReason.replace(/_/g, ' ')} /> : null}
+      </Card>
 
+      <Card style={{ marginTop: space.md }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Icon name="link-variant" color={c.primary} />
+          <T variant="title" style={{ flex: 1 }}>
+            Blockchain
+          </T>
+          {chain && (
+            <Badge
+              label={chain.action === 'BLOCKCHAIN_DISABLED' ? 'Off' : chain.verified ? 'Verified' : 'Tampered'}
+              tone={chain.verified ? 'success' : chain.action === 'BLOCKCHAIN_DISABLED' ? 'neutral' : 'danger'}
+              icon={chain.verified ? 'check' : 'close'}
+            />
+          )}
+        </View>
+        <T variant="small" muted style={{ marginTop: 6 }}>
+          Recomputes this batch's fingerprint and compares it with the one stored on-chain.
+        </T>
+        {chain?.network && <KeyValue label="Network" value={chain.network} />}
+        {batch.transactionHash ? <KeyValue label="Tx" value={`${batch.transactionHash.slice(0, 10)}…${batch.transactionHash.slice(-6)}`} mono /> : null}
+        <Button title={chain ? 'Verify again' : 'Verify on blockchain'} icon="shield-search" variant="secondary" loading={verifying} onPress={verify} style={{ marginTop: space.md }} />
+      </Card>
+
+      <View style={{ flexDirection: 'row', gap: space.md, marginTop: space.lg }}>
+        <Button title="QR code" icon="qrcode" variant="secondary" onPress={() => navigation.navigate('QRCode', { batch })} style={{ flex: 1 }} />
+        {can.transfer(user?.role) && batch.status === 'ACTIVE' && (
+          <Button title="Transfer" icon="truck-fast-outline" onPress={() => navigation.navigate('CreateTransfer', { batchId: batch.id })} style={{ flex: 1 }} />
+        )}
+      </View>
+    </Screen>
   );
-
 }
-const styles = StyleSheet.create({
-
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-
-  content: {
-    padding: 20,
-  },
-
-  iconContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-
-  iconCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: '#ECFDF5',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  card: {
-    backgroundColor: 'white',
-    borderRadius: 18,
-    padding: 20,
-    marginBottom: 20,
-    elevation: 3,
-  },
-
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-  },
-
-  label: {
-    marginTop: 12,
-    color: COLORS.subtitle,
-    fontSize: 13,
-  },
-
-  value: {
-    fontWeight: '700',
-    marginTop: 4,
-  },
-
-  daysRemaining: {
-    marginTop: 10,
-    fontWeight: '700',
-  },
-
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  statusTitle: {
-    marginLeft: 10,
-    fontWeight: '700',
-    fontSize: 18,
-  },
-
-  verifyStatus: {
-    marginTop: 18,
-    fontSize: 18,
-    fontWeight: '700',
-  },
-
-  hashLabel: {
-    marginTop: 14,
-    color: COLORS.subtitle,
-  },
-
-  primaryButton: {
-    marginTop: 22,
-    backgroundColor: COLORS.primary,
-    padding: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-  },
-
-  secondaryButton: {
-    marginTop: 18,
-    backgroundColor: COLORS.information,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-
-  buttonText: {
-    color: 'white',
-    fontWeight: '700',
-  },
-
-});

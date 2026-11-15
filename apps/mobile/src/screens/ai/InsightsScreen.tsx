@@ -1,34 +1,32 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, RefreshControl, StyleSheet, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
+import { useWindowDimensions, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
 import { aiService } from '../../services/aiService';
 import { cacheStorage } from '../../storage/cacheStorage';
-import { COLORS } from '../../utils/theme';
+import { Badge, Button, Card, FadeIn, GradientCard, Header, Icon, ListRow, Screen, Section, Skeleton, StatTile, T } from '../../ui/components';
+import { AreaChart, Donut } from '../../ui/charts';
+import { space, useTheme } from '../../ui/theme';
 
 type Insights = Awaited<ReturnType<typeof aiService.insights>>;
 
-const LEVEL_COLOR: Record<string, string> = { LOW: COLORS.success, MEDIUM: '#CA8A04', HIGH: '#EA580C', CRITICAL: COLORS.danger };
+const LEVEL_COLOR = { LOW: '#2E8B57', MEDIUM: '#CA8A04', HIGH: '#EA580C', CRITICAL: '#DC2626' } as const;
 
-/** AI insights for organisation roles (oversight roles see the full analytics dashboard). */
 export default function InsightsScreen() {
   const navigation = useNavigation<any>();
+  const { width } = useWindowDimensions();
+  const { c } = useTheme();
   const [data, setData] = useState<Insights | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const d = await aiService.insights();
       setData(d);
-      await cacheStorage.save('ai-insights', d);
+      cacheStorage.save('ai-insights', d).catch(() => undefined);
     } catch {
       const cached = await cacheStorage.get('ai-insights');
       if (cached) setData(cached as Insights);
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -36,117 +34,119 @@ export default function InsightsScreen() {
     load();
   }, [load]);
 
-  const max = Math.max(1, ...(data?.forecast.history ?? []).map((h) => h.units), ...(data?.forecast.forecast ?? []).map((f) => f.units));
+  const levels = (['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const).map((l) => ({
+    label: l.charAt(0) + l.slice(1).toLowerCase(),
+    value: data?.risks.filter((r) => r.expiryRiskLevel === l).length ?? 0,
+    color: LEVEL_COLOR[l],
+  }));
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }} edges={['top']}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}>
-        <View style={styles.hero}>
-          <Text style={styles.heroTitle}>AI Insights</Text>
-          <Text style={styles.heroSub}>{data?.aiProvider ?? 'Analysing your stock…'}</Text>
-        </View>
+    <Screen
+      refreshing={refreshing}
+      onRefresh={async () => {
+        setRefreshing(true);
+        await load();
+        setRefreshing(false);
+      }}
+    >
+      <Header title="AI Insights" subtitle={data?.aiProvider ?? 'Analysing your stock…'} onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined} />
 
-        {data && (
-          <>
-            <View style={styles.grid}>
-              {[
-                ['High expiry risk', data.counts.highExpiryRisk, '#EA580C'],
-                ['High recall risk', data.counts.highRecallRisk, COLORS.danger],
-                ['Low stock', data.counts.lowStock, '#CA8A04'],
-                ['Units at risk', data.counts.unitsAtRisk, COLORS.primary],
-              ].map(([label, value, color]) => (
-                <View key={label as string} style={styles.stat}>
-                  <Text style={[styles.statValue, { color: color as string }]}>{value as number}</Text>
-                  <Text style={styles.statLabel}>{label as string}</Text>
-                </View>
-              ))}
-            </View>
-
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Summary</Text>
+      {!data ? (
+        <>
+          <Skeleton height={150} />
+          <Skeleton height={200} style={{ marginTop: space.lg }} />
+        </>
+      ) : (
+        <>
+          <FadeIn>
+            <GradientCard>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Icon name="creation" size={20} color="#FFF" />
+                <T variant="title" color="#FFF">
+                  AI summary
+                </T>
+              </View>
               {data.narrative
                 .split('\n')
                 .filter(Boolean)
                 .map((l, i) => (
-                  <Text key={i} style={styles.body}>
-                    • {l.replace(/^[-•*]\s*/, '')}
-                  </Text>
-                ))}
-            </View>
-
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Demand forecast ({data.forecast.trend.toLowerCase()})</Text>
-              <View style={styles.chart}>
-                {[...data.forecast.history.map((h) => ({ ...h, f: false })), ...data.forecast.forecast.map((f) => ({ ...f, f: true }))].map((p) => (
-                  <View key={p.month + p.f} style={styles.barCol}>
-                    <View style={[styles.bar, { height: Math.max(4, (p.units / max) * 110), backgroundColor: p.f ? COLORS.success : COLORS.primary, opacity: p.f ? 0.6 : 1 }]} />
-                    <Text style={styles.barLabel}>{p.month.split(' ')[0]}</Text>
+                  <View key={i} style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#A7F3D0', marginTop: 8 }} />
+                    <T color="#FFF" style={{ flex: 1, lineHeight: 22 }}>
+                      {l.replace(/^[-•*]\s*/, '')}
+                    </T>
                   </View>
                 ))}
+            </GradientCard>
+          </FadeIn>
+
+          <View style={{ flexDirection: 'row', gap: space.md, marginTop: space.lg }}>
+            <StatTile label="High expiry risk" value={data.counts.highExpiryRisk} icon="calendar-alert" tone="warning" hint={`~${data.counts.unitsAtRisk} units at risk`} />
+            <StatTile label="High recall risk" value={data.counts.highRecallRisk} icon="shield-alert-outline" tone="danger" />
+          </View>
+
+          <Section title="Demand forecast">
+            <Card>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <T variant="small" muted>
+                  Units moved · next 3 months dashed
+                </T>
+                <Badge label={data.forecast.trend} tone={data.forecast.trend === 'DECREASING' ? 'warning' : 'success'} size="sm" />
               </View>
-              <Text style={styles.meta}>Green bars are the 3-month forecast.</Text>
-            </View>
+              <AreaChart
+                width={width - space.lg * 4}
+                height={170}
+                forecastFrom={data.forecast.history.length}
+                data={[
+                  ...data.forecast.history.map((h) => ({ label: h.month.split(' ')[0], value: h.units })),
+                  ...data.forecast.forecast.map((f) => ({ label: f.month.split(' ')[0], value: f.units })),
+                ]}
+              />
+            </Card>
+          </Section>
 
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Recommendations</Text>
+          <Section title="Expiry risk mix">
+            <Card>
+              <Donut segments={levels} centerLabel="BATCHES" />
+            </Card>
+          </Section>
+
+          <Section title="Recommendations">
+            <Card padded={false} style={{ paddingHorizontal: space.lg }}>
               {data.recommendations.map((r, i) => (
-                <View key={i} style={styles.rec}>
-                  <View style={[styles.dot, { backgroundColor: LEVEL_COLOR[r.priority] ?? COLORS.primary }]} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.recTitle}>{r.title}</Text>
-                    <Text style={styles.meta}>{r.detail}</Text>
-                  </View>
-                </View>
+                <ListRow
+                  key={i}
+                  icon={r.priority === 'CRITICAL' || r.priority === 'HIGH' ? 'alert-circle-outline' : 'lightbulb-on-outline'}
+                  iconTone={r.priority === 'CRITICAL' || r.priority === 'HIGH' ? 'danger' : r.priority === 'MEDIUM' ? 'warning' : 'success'}
+                  title={r.title}
+                  subtitle={r.detail}
+                  last={i === data.recommendations.length - 1}
+                />
               ))}
-            </View>
+            </Card>
+          </Section>
 
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Riskiest batches</Text>
-              {data.risks.slice(0, 8).map((r) => (
-                <View key={r.batchId} style={styles.riskRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.recTitle}>{r.drugName}</Text>
-                    <Text style={styles.meta}>
-                      {r.batchNumber} · {r.unitsInStock} units · {r.daysToExpiry <= 0 ? 'expired' : `${r.daysToExpiry}d left`}
-                    </Text>
-                  </View>
-                  <Text style={[styles.badge, { color: LEVEL_COLOR[r.expiryRiskLevel] }]}>{r.expiryRiskLevel}</Text>
-                </View>
+          <Section title="Riskiest batches">
+            <Card padded={false} style={{ paddingHorizontal: space.lg }}>
+              {data.risks.slice(0, 8).map((r, i) => (
+                <ListRow
+                  key={r.batchId}
+                  icon="pill"
+                  iconTone="primary"
+                  title={r.drugName}
+                  subtitle={`${r.batchNumber} · ${r.unitsInStock} units · ${r.daysToExpiry <= 0 ? 'expired' : `${r.daysToExpiry}d left`}`}
+                  right={<Badge status={r.expiryRiskLevel} size="sm" />}
+                  last={i === Math.min(7, data.risks.length - 1)}
+                />
               ))}
-            </View>
+              {data.risks.length === 0 && <T muted style={{ paddingVertical: space.lg }}>No batches to analyse yet.</T>}
+            </Card>
+          </Section>
 
-            <TouchableOpacity style={styles.cta} onPress={() => navigation.navigate('Assistant')}>
-              <MaterialIcons name="smart-toy" size={20} color={COLORS.white} />
-              <Text style={styles.ctaText}>Ask the AI assistant</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+          <Button title="Ask the AI assistant" icon="robot-happy-outline" onPress={() => navigation.navigate('Assistant')} style={{ marginTop: space.xl }} />
+          <View style={{ height: 1, backgroundColor: c.bg }} />
+        </>
+      )}
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  hero: { backgroundColor: COLORS.primary, borderRadius: 16, padding: 20 },
-  heroTitle: { color: COLORS.white, fontSize: 24, fontWeight: '800' },
-  heroSub: { color: '#D6E6F4', marginTop: 4 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  stat: { width: '48%', backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, padding: 14 },
-  statValue: { fontSize: 26, fontWeight: '800' },
-  statLabel: { fontSize: 13, color: COLORS.subtitle, marginTop: 2 },
-  card: { backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, padding: 16, gap: 8 },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  body: { fontSize: 14, color: COLORS.text, lineHeight: 21 },
-  meta: { fontSize: 12, color: COLORS.subtitle, lineHeight: 17 },
-  chart: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 130, marginTop: 6 },
-  barCol: { alignItems: 'center', flex: 1 },
-  bar: { width: 16, borderRadius: 4 },
-  barLabel: { fontSize: 10, color: COLORS.subtitle, marginTop: 4 },
-  rec: { flexDirection: 'row', gap: 10, paddingVertical: 6 },
-  dot: { width: 10, height: 10, borderRadius: 5, marginTop: 5 },
-  recTitle: { fontSize: 14, fontWeight: '600', color: COLORS.text },
-  riskRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.border },
-  badge: { fontSize: 12, fontWeight: '800' },
-  cta: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 14 },
-  ctaText: { color: COLORS.white, fontWeight: '700', fontSize: 15 },
-});
