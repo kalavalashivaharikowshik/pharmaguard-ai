@@ -27,6 +27,7 @@ import OfflineBanner from './src/components/common/OfflineBanner';
 import Toast from 'react-native-toast-message';
 
 import MainNavigator from './src/navigation/MainNavigator';
+import BiometricLockScreen from './src/screens/auth/BiometricLockScreen';
 
 import './src/services/interceptors';
 
@@ -63,6 +64,7 @@ function Root() {
   const {
     initializing,
     authenticated,
+    locked,
     login,
     loading,
   } = useAuth();
@@ -79,6 +81,10 @@ function Root() {
 
   if (initializing) {
     return <SplashScreen />;
+  }
+
+  if (authenticated && locked) {
+    return <BiometricLockScreen />;
   }
 
   if (!authenticated) {

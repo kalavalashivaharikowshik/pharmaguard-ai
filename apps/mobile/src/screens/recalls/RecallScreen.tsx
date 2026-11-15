@@ -29,6 +29,7 @@ import RecallCard from '../../components/recalls/RecallCard';
 import SummaryCard from '../../components/common/SummaryCard';
 import FilterChip from '../../components/common/FilterChip';
 import { recallService } from '../../services/recallService';
+import MyRecallTasks from '../../components/recalls/MyRecallTasks';
 import { COLORS } from '../../utils/theme';
 import type { Recall } from '../../types/recall';
 import PageHeader from '../../components/common/PageHeader';
@@ -344,6 +345,8 @@ export default function RecallScreen() {
                 }
               }}
             />
+
+            <MyRecallTasks />
 
             <View
 
