@@ -1,47 +1,148 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ethers } from 'ethers';
 
+import { PrismaService } from '../../prisma/prisma.service';
 import { BatchRegistryABI } from '../blockchain/abi';
+import { BatchRegistryBytecode } from '../blockchain/bytecode';
+import { computeBatchHash } from './batch-hash';
+
+type Mode = 'external' | 'embedded' | 'off';
 
 /**
- * Thin wrapper around the BatchRegistry smart contract.
+ * Wrapper around the BatchRegistry smart contract.
  *
- * Kept separate from BlockchainService so other modules (revocation, expiry,
- * recalls) can write to the chain without circular dependencies. When the
- * blockchain environment variables are missing the service stays disabled and
- * every write becomes a no-op, so the API still boots (useful for demos).
+ * Three modes:
+ *  - external: BLOCKCHAIN_RPC_URL + BLOCKCHAIN_PRIVATE_KEY + BLOCKCHAIN_CONTRACT_ADDRESS
+ *              are set (local Hardhat node, Sepolia, any EVM chain).
+ *  - embedded: (default when those are missing) the API starts its own in-process
+ *              Ethereum chain (Hardhat Network), deploys BatchRegistry itself and re-anchors
+ *              existing batches from the database. Zero setup for hosting.
+ *  - off:      BLOCKCHAIN_MODE=off. Writes are no-ops.
+ *
+ * Re-anchoring (embedded mode): the in-process chain starts empty after each
+ * restart, so every batch whose current data still matches the fingerprint
+ * stored at creation (Batch.blockchainHash) is registered again, and revoked
+ * batches are revoked again. Batches whose data no longer matches are NOT
+ * re-registered, so tampering is still detected.
  */
 @Injectable()
-export class ChainService {
+export class ChainService implements OnModuleInit {
   private readonly logger = new Logger(ChainService.name);
-  private readonly contract?: ethers.Contract;
+  private contract?: ethers.Contract;
+  private readonly mode: Mode;
+  private ready: Promise<void> = Promise.resolve();
+  private embeddedAddress?: string;
+  private embeddedFailed = false;
 
-  constructor() {
-    const { BLOCKCHAIN_RPC_URL, BLOCKCHAIN_PRIVATE_KEY, BLOCKCHAIN_CONTRACT_ADDRESS } = process.env;
+  constructor(private prisma: PrismaService) {
+    const { BLOCKCHAIN_RPC_URL, BLOCKCHAIN_PRIVATE_KEY, BLOCKCHAIN_CONTRACT_ADDRESS, BLOCKCHAIN_MODE } = process.env;
 
-    if (!BLOCKCHAIN_RPC_URL || !BLOCKCHAIN_PRIVATE_KEY || !BLOCKCHAIN_CONTRACT_ADDRESS) {
-      this.logger.warn('Blockchain env vars missing. On-chain features are disabled.');
+    if (BLOCKCHAIN_MODE === 'off') {
+      this.mode = 'off';
+      this.logger.warn('BLOCKCHAIN_MODE=off. On-chain features are disabled.');
       return;
     }
 
-    const provider = new ethers.providers.JsonRpcProvider(BLOCKCHAIN_RPC_URL);
-    const wallet = new ethers.Wallet(BLOCKCHAIN_PRIVATE_KEY, provider);
-    this.contract = new ethers.Contract(BLOCKCHAIN_CONTRACT_ADDRESS, BatchRegistryABI, wallet);
+    if (BLOCKCHAIN_RPC_URL && BLOCKCHAIN_PRIVATE_KEY && BLOCKCHAIN_CONTRACT_ADDRESS) {
+      this.mode = 'external';
+      const provider = new ethers.providers.JsonRpcProvider(BLOCKCHAIN_RPC_URL);
+      const wallet = new ethers.Wallet(BLOCKCHAIN_PRIVATE_KEY, provider);
+      this.contract = new ethers.Contract(BLOCKCHAIN_CONTRACT_ADDRESS, BatchRegistryABI, wallet);
+      return;
+    }
+
+    this.mode = 'embedded';
+  }
+
+  onModuleInit() {
+    if (this.mode !== 'embedded') return;
+    // Writes and reads wait for this, so requests made during start-up still work.
+    this.ready = this.startEmbedded().catch((err) => {
+      this.logger.error(`Embedded blockchain failed to start: ${(err as Error).message}`);
+      this.contract = undefined;
+      this.embeddedFailed = true;
+    });
+  }
+
+  private async startEmbedded() {
+    // Hardhat Network (EDR) running in-process. Loaded lazily: only needed in embedded mode.
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const { resolveConfig } = require('hardhat/internal/core/config/config-resolution');
+    const { createProvider } = require('hardhat/internal/core/providers/construction');
+    /* eslint-enable @typescript-eslint/no-require-imports */
+    const config = resolveConfig(__filename, {
+      networks: { hardhat: { chainId: 1337, loggingEnabled: false } },
+    });
+    const chain = await createProvider(config, 'hardhat');
+    const provider = new ethers.providers.Web3Provider(chain);
+    const signer = provider.getSigner(0);
+
+    const factory = new ethers.ContractFactory(BatchRegistryABI, BatchRegistryBytecode, signer);
+    const contract = await factory.deploy();
+    await contract.deployed();
+    this.contract = contract;
+    this.embeddedAddress = contract.address;
+    this.logger.log(`Embedded Ethereum chain started; BatchRegistry deployed at ${contract.address}`);
+
+    // A re-anchor problem (e.g. database not reachable yet) must not disable the chain.
+    await this.reanchor().catch((err) => this.logger.warn(`Re-anchoring skipped: ${(err as Error).message}`));
+  }
+
+  /** Re-registers untampered batches (and re-revokes revoked ones) on the fresh embedded chain. */
+  private async reanchor() {
+    if (!this.contract) return;
+    const batches = await this.prisma.batch.findMany({
+      where: { blockchainHash: { not: null } },
+      select: {
+        batchNumber: true,
+        drugName: true,
+        manufactureDate: true,
+        expiryDate: true,
+        quantity: true,
+        blockchainHash: true,
+        status: true,
+        revocationReason: true,
+      },
+    });
+
+    let anchored = 0;
+    let skipped = 0;
+    for (const b of batches) {
+      if (computeBatchHash(b) !== b.blockchainHash) {
+        skipped++; // data changed since creation: leave unregistered so verification flags it
+        continue;
+      }
+      try {
+        await (await this.contract.registerBatch(b.batchNumber, b.blockchainHash)).wait();
+        if (b.status === 'REVOKED' || b.status === 'DESTROYED') {
+          await (await this.contract.revokeBatch(b.batchNumber, b.revocationReason || b.status)).wait();
+        }
+        anchored++;
+      } catch (err) {
+        this.logger.warn(`Re-anchor failed for ${b.batchNumber}: ${(err as Error).message}`);
+      }
+    }
+    if (batches.length) {
+      this.logger.log(`Re-anchored ${anchored} batch(es) on the embedded chain${skipped ? `, ${skipped} skipped (data changed)` : ''}.`);
+    }
   }
 
   get enabled(): boolean {
-    return !!this.contract;
+    if (this.mode === 'embedded') return !this.embeddedFailed;
+    return this.mode === 'external' && !!this.contract;
   }
 
   get network(): string {
+    if (this.mode === 'embedded') return 'embedded (in-app Ethereum)';
     return process.env.BLOCKCHAIN_NETWORK || 'localhost';
   }
 
   get contractAddress(): string | undefined {
-    return process.env.BLOCKCHAIN_CONTRACT_ADDRESS;
+    return this.mode === 'embedded' ? this.embeddedAddress : process.env.BLOCKCHAIN_CONTRACT_ADDRESS;
   }
 
   async registerBatch(batchNumber: string, batchHash: string): Promise<string | null> {
+    await this.ready;
     if (!this.contract) return null;
     const tx = await this.contract.registerBatch(batchNumber, batchHash);
     const receipt = await tx.wait();
@@ -49,9 +150,9 @@ export class ChainService {
   }
 
   async getBatch(batchNumber: string) {
-    if (!this.contract) {
-      return { batchNumber, batchHash: '', registeredAt: 0, revoked: false, revokedAt: 0, revocationReason: '' };
-    }
+    await this.ready;
+    const empty = { batchNumber, batchHash: '', registeredAt: 0, revoked: false, revokedAt: 0, revocationReason: '' };
+    if (!this.contract) return empty;
     try {
       const d = await this.contract.getBatchDetails(batchNumber);
       return {
@@ -67,15 +168,16 @@ export class ChainService {
       // Older deployments only expose getBatch().
       try {
         const b = await this.contract.getBatch(batchNumber);
-        return { batchNumber, batchHash: b[1], registeredAt: Number(b[2]), revoked: false, revokedAt: 0, revocationReason: '' };
+        return { ...empty, batchHash: b[1], registeredAt: Number(b[2]) };
       } catch {
-        return { batchNumber, batchHash: '', registeredAt: 0, revoked: false, revokedAt: 0, revocationReason: '' };
+        return empty;
       }
     }
   }
 
   /** Revokes on-chain. Never throws: revocation in the database must not fail because of the chain. */
   async revokeBatch(batchNumber: string, reason: string): Promise<string | null> {
+    await this.ready;
     if (!this.contract) return null;
     try {
       const registered: boolean = await this.contract.isRegistered(batchNumber);
@@ -92,21 +194,20 @@ export class ChainService {
   }
 
   async stats() {
-    if (!this.contract) return { enabled: false, network: this.network };
+    await this.ready;
+    if (!this.enabled || !this.contract) return { enabled: false, network: this.network };
     try {
-      const [totalBatches, totalRevoked] = await Promise.all([
-        this.contract.totalBatches(),
-        this.contract.totalRevoked(),
-      ]);
+      const [totalBatches, totalRevoked] = await Promise.all([this.contract.totalBatches(), this.contract.totalRevoked()]);
       return {
         enabled: true,
+        mode: this.mode,
         network: this.network,
         contractAddress: this.contractAddress,
         totalBatches: Number(totalBatches),
         totalRevoked: Number(totalRevoked),
       };
     } catch {
-      return { enabled: true, network: this.network, contractAddress: this.contractAddress };
+      return { enabled: true, mode: this.mode, network: this.network, contractAddress: this.contractAddress };
     }
   }
 }
