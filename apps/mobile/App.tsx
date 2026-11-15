@@ -13,6 +13,7 @@ import LoginScreen from './src/screens/auth/LoginScreen';
 import ForgotPasswordScreen from './src/screens/auth/ForgotPasswordScreen';
 import BiometricLockScreen from './src/screens/auth/BiometricLockScreen';
 import OfflineBanner from './src/components/common/OfflineBanner';
+import ErrorBoundary from './src/components/common/ErrorBoundary';
 import AppNavigator from './src/navigation/AppNavigator';
 import './src/services/interceptors';
 
@@ -58,6 +59,7 @@ function ThemedToast() {
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <SafeAreaProvider>
       <ThemeProvider>
         <NetworkProvider>
@@ -69,5 +71,6 @@ export default function App() {
         <ThemedToast />
       </ThemeProvider>
     </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
