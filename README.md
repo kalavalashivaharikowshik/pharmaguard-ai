@@ -6,6 +6,25 @@ PharmaGuard AI tracks every medicine batch from manufacturer to patient, stores 
 
 > Web dashboard for manufacturers, distributors, hospitals and regulators · Mobile app for pharmacies, hospitals and field staff · NestJS API · Solidity smart contract
 
+## 🚀 Live demo
+
+| | Link |
+|---|---|
+| 🌐 **Web app** | **[pharmaguard-ai-tawny.vercel.app](https://pharmaguard-ai-tawny.vercel.app)** |
+| 📱 **Android app (APK)** | **[Download the APK](PASTE_YOUR_APK_LINK_HERE)** |
+| ⚙️ **API** | [pharmaguard-api-rktk.onrender.com](https://pharmaguard-api-rktk.onrender.com/health) |
+| 📖 **API docs (Swagger)** | [pharmaguard-api-rktk.onrender.com/api/docs](https://pharmaguard-api-rktk.onrender.com/api/docs) |
+
+Sign in with any [demo account](#demo-accounts) (password `Demo@1234`). Try **pharmacy@pharmaguard.ai** on the phone and **regulator@pharmaguard.ai** on the web.
+
+> ⏳ The API runs on Render's free plan and sleeps when idle. The first request after a break can take up to a minute; after that it is fast.
+
+### Install the Android app
+
+1. Open the APK link on your Android phone and download the file.
+2. Open it and allow **Install unknown apps** when asked.
+3. Launch **PharmaGuard AI** and sign in with a demo account.
+
 ---
 
 ## Features
@@ -24,6 +43,15 @@ PharmaGuard AI tracks every medicine batch from manufacturer to patient, stores 
 | **Notifications** | Real-time (Socket.IO), mobile push (Firebase), SMS for urgent alerts (Twilio) and email, delivered through a BullMQ queue on Redis. |
 | **Compliance** | Audit log of every critical action, violation log, compliance reports, CSV / Excel / PDF exports, safety KPIs. |
 | **Security** | JWT + bcrypt, role-based access for 6 roles, organisation registration with approval and email activation, Helmet, rate limiting, password hashes never leave the API. Mobile: secure token storage and fingerprint / Face ID unlock. |
+
+## Mobile app highlights
+
+- **Same design as the web**: brand blue and green, with **dark mode** (follows the phone, or switch in Settings)
+- **5 tabs**: Home · Inventory · **Scan** (raised centre button) · Recalls · More
+- **One-tap scan verdict**: point the camera at a batch QR and get **Safe**, **Expiring soon**, **Blocked** (recalled or expired) or **Counterfeit**, with the reasons, batch details and blockchain proof
+- **Recall tasks** with countdown deadlines and a one-tap "Mark quarantined" action
+- **AI insights** charts, **AI assistant** chat, 3-step **transfer** wizard, disposals, notifications and analytics
+- **Fingerprint / Face ID** unlock, secure token storage, haptics, offline mode with saved data, onboarding screens
 
 ## Architecture
 
@@ -44,7 +72,7 @@ flowchart LR
   A --> DB[(PostgreSQL<br/>Prisma)]
   A --> R[(Redis)]
   Q --> R
-  A --> BC[BatchRegistry.sol<br/>Ethereum / Sepolia]
+  A --> BC[BatchRegistry.sol<br/>embedded Ethereum chain]
   AG --> G[Google Gemini]
   Q --> N[Firebase push · Twilio SMS · SMTP]
 ```
@@ -55,7 +83,7 @@ flowchart LR
 - **AI:** Google Gemini (`@google/genai`), LangGraph (`@langchain/langgraph`)
 - **Blockchain:** Solidity 0.8.20, OpenZeppelin AccessControl, Hardhat 2, ethers v5
 - **Web:** React 19, Vite, Tailwind CSS 4, Recharts, React Leaflet
-- **Mobile:** React Native 0.81, Expo 54, expo-camera, Firebase Messaging, expo-local-authentication, expo-secure-store
+- **Mobile:** React Native 0.81, Expo 54, React Navigation 7, expo-camera, react-native-svg charts, expo-linear-gradient, expo-haptics, Firebase Messaging, expo-local-authentication, expo-secure-store
 - **Tooling:** Turborepo, Jest, GitHub Actions, Render, Vercel, EAS Build
 
 ## Repository layout
@@ -126,7 +154,7 @@ The end-to-end script exercises every role: RBAC, blockchain registration and ve
 
 ## Deployment
 
-See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**: Render (API, Postgres, Redis), Vercel (web), Sepolia (contract) and EAS (Android APK), all on free tiers.
+See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**: Render (API, Postgres, Redis, embedded blockchain), Vercel (web) and EAS (Android APK), all on free tiers. Pointing the API at Sepolia or another EVM network is optional.
 
 ## Role permissions
 
