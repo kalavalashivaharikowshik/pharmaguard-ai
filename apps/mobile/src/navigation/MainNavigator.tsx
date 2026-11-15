@@ -60,6 +60,8 @@ import ProfileScreen
 import ChangePasswordScreen
   from '../screens/profile/ChangePasswordScreen';
 import AnalyticsScreen from '../screens/analytics/AnalyticsScreen';
+import AssistantScreen from '../screens/ai/AssistantScreen';
+import SettingsScreen from '../screens/settings/SettingsScreen';
 
 const Tab =
   createBottomTabNavigator();
@@ -79,7 +81,7 @@ function TabNavigator() {
 
         tabBarShowLabel: false,
 
-        tabBarActiveTintColor: '#0F766E',
+        tabBarActiveTintColor: '#0F4C81',
 
         tabBarInactiveTintColor: '#94A3B8',
 
@@ -368,6 +370,18 @@ export default function MainNavigator() {
 
           component={ChangePasswordScreen}
 
+        />
+
+      <Stack.Screen
+          name="Assistant"
+          component={AssistantScreen}
+          options={{ headerShown: false }}
+        />
+
+        <Stack.Screen
+          name="Settings"
+          component={SettingsScreen}
+          options={{ headerShown: false }}
         />
 
       </Stack.Navigator>

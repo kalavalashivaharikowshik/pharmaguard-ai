@@ -193,12 +193,12 @@ export default function HomeScreen() {
             />
 
             <QuickAction
-              title="Profile"
-              icon="person"
+              title="AI Assistant"
+              icon="smart-toy"
               color={COLORS.success}
               onPress={() =>
                 navigation.navigate(
-                  'Profile',
+                  'Assistant',
                 )
               }
             />
@@ -207,9 +207,9 @@ export default function HomeScreen() {
               title="Verify"
               icon="verified"
               color="#0891B2"
-              onPress={() => {
-                // Will connect during Blockchain Verification phase
-              }}
+              onPress={() =>
+                navigation.navigate('Main', { screen: 'Scanner' })
+              }
             />
 
             <QuickAction

@@ -247,6 +247,18 @@ export default function ProfileScreen() {
         >
 
           <ProfileActionCard
+            title="Settings & Biometrics"
+            icon="settings"
+            onPress={() => navigation.navigate('Settings')}
+          />
+
+          <ProfileActionCard
+            title="AI Assistant"
+            icon="smart-toy"
+            onPress={() => navigation.navigate('Assistant')}
+          />
+
+          <ProfileActionCard
             title="Change Password"
             icon="lock"
             onPress={openChangePassword}
