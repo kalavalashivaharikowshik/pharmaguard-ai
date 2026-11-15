@@ -1,0 +1,81 @@
+# Render Blueprint: backend API + PostgreSQL + Redis (Key Value).
+# Deploy: Render dashboard → New → Blueprint → pick this repository.
+# Values marked "sync: false" are asked for during setup (paste your own keys there).
+services:
+  - type: web
+    name: pharmaguard-api
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci --workspace=backend --include=dev && npm run build --workspace=backend
+    startCommand: npm run start:prod --workspace=backend
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pharmaguard-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: pharmaguard-redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 1d
+      - key: SEED_DEMO_DATA
+        value: "true"
+      # Web app URL on Vercel, e.g. https://pharmaguard-ai.vercel.app (used for CORS and email links)
+      - key: FRONTEND_URL
+        sync: false
+      # Free key from https://aistudio.google.com/apikey
+      - key: GEMINI_API_KEY
+        sync: false
+      # Sepolia testnet (see docs/DEPLOYMENT.md)
+      - key: BLOCKCHAIN_NETWORK
+        value: sepolia
+      - key: BLOCKCHAIN_RPC_URL
+        sync: false
+      - key: BLOCKCHAIN_PRIVATE_KEY
+        sync: false
+      - key: BLOCKCHAIN_CONTRACT_ADDRESS
+        sync: false
+      # Optional: email (e.g. Gmail app password or Brevo SMTP)
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      # Optional: SMS via Twilio
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+      # Optional: push notifications (paste the Firebase service-account JSON)
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false
+
+  - type: keyvalue
+    name: pharmaguard-redis
+    plan: free
+    region: singapore
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
+databases:
+  - name: pharmaguard-db
+    plan: free
+    region: singapore
+    databaseName: pharmaguard
+    user: pharmaguard

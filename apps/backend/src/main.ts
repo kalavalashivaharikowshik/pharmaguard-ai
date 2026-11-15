@@ -8,6 +8,8 @@ import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
 import { AppModule } from './app.module';
+import { PrismaService } from './prisma/prisma.service';
+import { seedDemoData } from './database/demo-seed';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -62,6 +64,16 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, SwaggerModule.createDocument(app, config), {
     swaggerOptions: { persistAuthorization: true },
   });
+
+  // Optional demo accounts for a live showcase (one user per role).
+  if (process.env.SEED_DEMO_DATA === 'true') {
+    try {
+      const count = await seedDemoData(app.get(PrismaService));
+      logger.log(`Demo data ready (${count} demo users).`);
+    } catch (err) {
+      logger.warn(`Demo seed failed: ${(err as Error).message}`);
+    }
+  }
 
   const port = Number(process.env.PORT) || 3000;
   await app.listen(port, '0.0.0.0');
