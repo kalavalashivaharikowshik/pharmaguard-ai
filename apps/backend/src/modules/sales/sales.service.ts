@@ -110,7 +110,9 @@ export class SalesService {
         batch.batchNumber,
       );
 
-    if (!verification.verified || verification.revokedOnChain) {
+    const blockchainSkipped = verification.action === 'BLOCKCHAIN_DISABLED';
+
+    if (!blockchainSkipped && (!verification.verified || verification.revokedOnChain)) {
 
       await this.scanHistoryService.create({
 

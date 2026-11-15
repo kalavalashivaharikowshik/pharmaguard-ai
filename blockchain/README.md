@@ -1,57 +1,27 @@
-# Sample Hardhat 3 Project (`mocha` and `ethers`)
+# PharmaGuard AI — BatchRegistry smart contract
 
-This project showcases a Hardhat 3 project using `mocha` for tests and the `ethers` library for Ethereum interactions.
+Hardhat 2 + ethers v5 workspace (kept separate from the NestJS backend to avoid ESM/CommonJS conflicts).
 
-To learn more about Hardhat 3, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3](https://hardhat.org/hardhat3-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+`contracts/BatchRegistry.sol` stores a keccak256 fingerprint of every medicine batch and lets the backend revoke a batch permanently:
 
-## Project Overview
+| Function | Who | Purpose |
+|---|---|---|
+| `registerBatch(batchNumber, batchHash)` | `REGISTRAR_ROLE` | Store a batch fingerprint (once) |
+| `revokeBatch(batchNumber, reason)` | `REGISTRAR_ROLE` | Self-destructing identity: permanently invalidate a batch |
+| `verifyBatch(batchNumber, hash)` | anyone | `true` only if registered, not revoked and the hash matches |
+| `getBatch` / `getBatchDetails` / `isRegistered` / `isRevoked` | anyone | Read state |
 
-This example project includes:
+Access control uses OpenZeppelin `AccessControl`. The deployer gets the admin and registrar roles. Set `REGISTRAR_ADDRESS` when deploying to grant the backend wallet the registrar role too.
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using `mocha` and ethers.js
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
+## Commands
 
-## Usage
-
-### Running Tests
-
-To run all the tests in the project, execute the following command:
-
-```shell
-npx hardhat test
+```bash
+npm install
+npm test                 # 7 tests
+npm run node             # local chain on http://127.0.0.1:8545
+npm run deploy:local     # deploy to the local chain
+npm run deploy:sepolia   # deploy to Sepolia (needs .env, see .env.example)
+npm run export-abi       # copy the ABI into apps/backend
 ```
 
-You can also selectively run the Solidity or `mocha` tests:
-
-```shell
-npx hardhat test solidity
-npx hardhat test mocha
-```
-
-### Make a deployment to Sepolia
-
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
-
-To run the deployment to a local chain:
-
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
-```
-
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
-
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
-
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
-
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
-```
-
-After setting the variable, you can run the deployment with the Sepolia network:
-
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
-```
+When the official compiler download is blocked, Hardhat uses the `solc` npm package (`USE_LOCAL_SOLC`, on by default). Set `USE_LOCAL_SOLC=false` to use the native compiler.

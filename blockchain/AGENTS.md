@@ -1,20 +1,14 @@
-# Hardhat + ethers project
+# Hardhat 2 + ethers v5 project
 
-## Project layout
+This workspace uses **Hardhat 2.22** with `@nomiclabs/hardhat-ethers` and **ethers v5** (not Hardhat 3 / ethers v6).
 
 ```
-contracts/        Solidity source files (*.sol) and unit tests (*.t.sol)
-test/             TypeScript integration tests and Solidity unit tests (*.sol)
-ignition/         Hardhat Ignition deployment modules
-scripts/          Standalone scripts run with `hardhat run`
-hardhat.config.ts
+contracts/   BatchRegistry.sol (OpenZeppelin AccessControl)
+test/        Mocha + chai tests (JavaScript)
+scripts/     deploy.js, export-abi.js
+hardhat.config.js
 ```
 
-## Working in this project
-
-When writing or modifying tests, configuring `hardhat.config.ts`, or interacting with the network from TypeScript, invoke the **`hardhat`** skill. It covers Solidity and TypeScript testing, how to choose between them, `forge-std` cheatcodes, the `network.create()` API, `networkHelpers`, and the compile-then-typecheck workflow. The skill itself points to the matching `hardhat-toolbox-*` skill for toolbox-specific guidance (signers, contract interaction, assertions).
-
-## Docs
-
-- Hardhat 3 — https://hardhat.org/llms.txt
-- ethers.js — https://docs.ethers.org/v6/
+- Run `npx hardhat test` after any contract change.
+- After changing the contract ABI, run `npm run export-abi` so `apps/backend/src/modules/blockchain/abi.ts` stays in sync.
+- Keep `getBatch(string)` backwards compatible; the backend falls back to it on older deployments.

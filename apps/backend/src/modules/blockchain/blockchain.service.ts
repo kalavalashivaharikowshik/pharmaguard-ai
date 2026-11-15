@@ -139,6 +139,23 @@ export class BlockchainService {
       );
     }
 
+    // Blockchain not configured (e.g. a demo without Sepolia keys): report it
+    // clearly instead of treating every batch as tampered.
+    if (!this.chain.enabled) {
+      return {
+        batchNumber,
+        verified: false,
+        currentHash: await this.generateBatchHash(dbBatch),
+        blockchainHash: '',
+        action: 'BLOCKCHAIN_DISABLED',
+        revokedOnChain: false,
+        revocationReason: dbBatch.revocationReason,
+        network: this.chain.network,
+        contractAddress: undefined,
+        batch: dbBatch,
+      };
+    }
+
     const chainBatch =
       await this.getBatch(
         batchNumber,
