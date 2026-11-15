@@ -117,7 +117,7 @@ export default function RegistrationRequests() {
 
       <div className="space-y-8">
 
-        <div className="rounded-3xl bg-gradient-to-r from-[#0F766E] via-[#0D9488] to-[#14B8A6] p-8 shadow-xl">
+        <div className="rounded-3xl bg-gradient-to-r from-[#0F4C81] via-[#155A94] to-[#2E8B57] p-8 shadow-xl">
 
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
 

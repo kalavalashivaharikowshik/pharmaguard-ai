@@ -32,7 +32,15 @@ interface Props {
 }
 
 
-export default function UserDetailsDrawer({
+export default function UserDetailsDrawer(props: Props) {
+  // Hooks live in the content component so they always run in the same order.
+  if (!props.user) {
+    return null;
+  }
+  return <UserDetailsDrawerContent key={props.user.id} {...props} user={props.user} />;
+}
+
+function UserDetailsDrawerContent({
 
   user,
 
@@ -40,14 +48,8 @@ export default function UserDetailsDrawer({
 
   onUpdated,
 
-}: Props) {
+}: Props & { user: User }) {
 
-
-  if (!user) {
-
-    return null;
-
-  }
 
 
   const [

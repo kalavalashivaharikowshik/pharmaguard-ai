@@ -1,11 +1,11 @@
+import { aiService } from '../../services/aiService';
+import RecallAgentDetails from './RecallAgentDetails';
 import {
   useEffect,
   useState,
 } from 'react';
 
-import {
-  recallService,
-} from '../../services/recallService';
+
 
 import type {
   Recall,
@@ -44,7 +44,7 @@ export default function RecallDetailsDrawer({
         }
 
         const result =
-          await recallService.getSummary(
+          await aiService.summary(
             recall.id,
           );
 
@@ -248,6 +248,8 @@ export default function RecallDetailsDrawer({
 
 
 
+
+          {recall && <RecallAgentDetails recallId={recall.id} status={recall.status} />}
 
           {/* AI SUMMARY */}
 

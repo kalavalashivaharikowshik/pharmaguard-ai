@@ -1,5 +1,7 @@
 import { Navigate } from 'react-router-dom';
 
+import { hasRole } from './roles';
+
 export default function RoleProtectedRoute({
   children,
   roles,
@@ -7,20 +9,8 @@ export default function RoleProtectedRoute({
   children: React.ReactNode;
   roles: string[];
 }) {
-
-  const role =
-    localStorage.getItem('role');
-
-  if (
-    !role ||
-    !roles.includes(role)
-  ) {
-    return (
-      <Navigate
-        to="/unauthorized"
-      />
-    );
+  if (!hasRole(roles)) {
+    return <Navigate to="/unauthorized" />;
   }
-
   return children;
 }

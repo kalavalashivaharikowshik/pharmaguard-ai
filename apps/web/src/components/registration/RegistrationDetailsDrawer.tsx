@@ -1,3 +1,4 @@
+import { API_URL } from '../../config';
 import {
   useEffect,
   useState,
@@ -417,7 +418,7 @@ export default function RegistrationDetailsDrawer({
                         key={document.id}
 
                         href={
-                          `http://localhost:3000${document.fileUrl}`
+                          `${API_URL}${document.fileUrl}`
                         }
 
                         target="_blank"

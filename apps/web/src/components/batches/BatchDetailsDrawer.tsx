@@ -64,9 +64,9 @@ export default function BatchDetailsDrawer({
             top-0
             z-20
             bg-gradient-to-r
-            from-[#0F766E]
-            via-[#0D9488]
-            to-[#14B8A6]
+            from-[#0F4C81]
+            via-[#155A94]
+            to-[#2E8B57]
             px-8
             py-8
             text-white

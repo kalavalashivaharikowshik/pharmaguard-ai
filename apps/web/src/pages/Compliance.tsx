@@ -159,7 +159,7 @@ export default function Compliance() {
 
         {/* Hero */}
 
-        <div className="rounded-3xl bg-gradient-to-r from-[#0F766E] via-[#0D9488] to-[#14B8A6] p-8 text-white shadow-xl">
+        <div className="rounded-3xl bg-gradient-to-r from-[#0F4C81] via-[#155A94] to-[#2E8B57] p-8 text-white shadow-xl">
 
           <div className="flex items-center justify-between">
 
