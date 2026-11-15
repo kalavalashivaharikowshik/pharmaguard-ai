@@ -9,6 +9,7 @@ import { BlockchainService } from '../blockchain/blockchain.service';
 import { ValidateSaleDto } from './dto/validate-sale.dto';
 
 import { ScanHistoryService } from '../scan-history/scan-history.service';
+import { ViolationsService } from '../infra/violations.service';
 
 @Injectable()
 export class SalesService {
@@ -16,6 +17,7 @@ export class SalesService {
     private prisma: PrismaService,
     private blockchainService: BlockchainService,
     private scanHistoryService: ScanHistoryService,
+    private violations: ViolationsService,
   ) {}
 
   async validateSale(
@@ -46,6 +48,21 @@ export class SalesService {
 
     });
 
+    await this.violations.record({
+
+      type: 'UNKNOWN_PRODUCT_SCAN',
+
+      severity: 'HIGH',
+
+      description: 'Unknown QR code scanned at point of sale (possible counterfeit).',
+
+      userId,
+
+      metadata: { qrCode: dto.qrCode },
+
+    });
+
+
     throw new NotFoundException(
       'Batch not found',
     );
@@ -71,6 +88,15 @@ export class SalesService {
         result: 'REVOKED',
 
       });
+       await this.violations.record({
+         type: 'REVOKED_SALE_ATTEMPT',
+         severity: 'CRITICAL',
+         description: `Sale attempted for a revoked batch (${batch.batchNumber}).`,
+         batchId: batch.id,
+         userId,
+         metadata: { qrCode: dto.qrCode },
+       });
+
        return {
          approved: false,
          reason: 'REVOKED',
@@ -84,7 +110,7 @@ export class SalesService {
         batch.batchNumber,
       );
 
-    if (!verification.verified) {
+    if (!verification.verified || verification.revokedOnChain) {
 
       await this.scanHistoryService.create({
 
@@ -128,6 +154,15 @@ export class SalesService {
         result: 'RECALLED',
 
       });
+      await this.violations.record({
+        type: 'RECALLED_SALE_ATTEMPT',
+        severity: 'CRITICAL',
+        description: `Sale attempted for a recalled batch (${batch.batchNumber}).`,
+        batchId: batch.id,
+        userId,
+        metadata: { qrCode: dto.qrCode },
+      });
+
       return {
         approved: false,
         reason: 'RECALLED',
@@ -156,6 +191,15 @@ export class SalesService {
         result: 'EXPIRED',
 
       });
+      await this.violations.record({
+        type: 'EXPIRED_SALE_ATTEMPT',
+        severity: 'HIGH',
+        description: `Sale attempted for an expired batch (${batch.batchNumber}).`,
+        batchId: batch.id,
+        userId,
+        metadata: { qrCode: dto.qrCode },
+      });
+
       return {
         approved: false,
         reason: 'EXPIRED',

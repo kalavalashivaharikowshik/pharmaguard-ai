@@ -15,6 +15,8 @@ import { CreateRecallDto } from './dto/create-recall.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 
 import { AuditService } from '../audit/audit.service';
+import { RecallAgentService } from '../ai/recall-agent.service';
+import { UpdateRecallDto } from './dto/create-recall.dto';
 
 @Injectable()
 export class RecallsService {
@@ -22,6 +24,7 @@ export class RecallsService {
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
     private auditService: AuditService,
+    private recallAgent: RecallAgentService,
   ) {}
 
   async create(
@@ -40,11 +43,29 @@ export class RecallsService {
       );
     }
 
+    if (['REVOKED', 'DESTROYED', 'EXPIRED'].includes(batch.status)) {
+      throw new BadRequestException(
+        `Batch is already ${batch.status.toLowerCase()} and cannot be recalled.`,
+      );
+    }
+
+    const active = await this.prisma.recall.findFirst({
+      where: { batchId: dto.batchId, status: RecallStatus.ACTIVE },
+    });
+    if (active) {
+      throw new BadRequestException(
+        `Batch already has an active recall (${active.recallNumber}).`,
+      );
+    }
+
+    const recallNumber =
+      dto.recallNumber?.trim() ||
+      `RCL-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+
     const recall =
       await this.prisma.recall.create({
         data: {
-          recallNumber:
-            dto.recallNumber,
+          recallNumber,
 
           reason:
             dto.reason,
@@ -100,13 +121,76 @@ export class RecallsService {
 
     });
 
+    // Agentic AI workflow: locate stock, create tasks, notify holders, write summary.
+    this.recallAgent.runInBackground(recall.id);
+
     return recall;
+  }
+
+  async update(
+    id: string,
+    dto: UpdateRecallDto,
+    userId: string,
+  ) {
+    const recall = await this.prisma.recall.findUnique({ where: { id }, include: { batch: true } });
+    if (!recall) {
+      throw new BadRequestException('Recall not found');
+    }
+
+    if (dto.status === RecallStatus.COMPLETED && recall.status !== RecallStatus.COMPLETED) {
+      await this.recallAgent.finalize(id);
+    }
+
+    const updated = await this.prisma.recall.update({
+      where: { id },
+      data: {
+        reason: dto.reason ?? undefined,
+        severity: dto.severity ?? undefined,
+      },
+      include: { batch: true },
+    });
+
+    await this.auditService.log({
+      userId,
+      action: 'RECALL_UPDATED',
+      entity: 'RECALL',
+      entityId: id,
+      description: `Recall ${recall.recallNumber} updated.`,
+      metadata: { before: { reason: recall.reason, severity: recall.severity, status: recall.status }, changes: dto },
+    });
+
+    // Notify everyone involved (same audience as recall creation).
+    const holders = await this.prisma.inventory.findMany({ where: { batchId: recall.batchId }, select: { ownerUserId: true } });
+    const others = await this.prisma.user.findMany({
+      where: {
+        OR: [
+          { role: { in: ['SUPER_ADMIN', 'REGULATOR'] } },
+          { manufacturerId: recall.batch.manufacturerId },
+        ],
+      },
+      select: { id: true },
+    });
+    const ids = new Set([...holders.map((h) => h.ownerUserId), ...others.map((o) => o.id)]);
+    for (const uid of ids) {
+      await this.notificationsService.createNotification({
+        userId: uid,
+        title: 'Recall Updated',
+        message: `Recall ${recall.recallNumber} for ${recall.batch.batchNumber} was updated${dto.severity ? ` (severity ${dto.severity})` : ''}${dto.status ? ` (status ${dto.status})` : ''}.`,
+        type: 'RECALL',
+        priority: (dto.severity ?? recall.severity) === 'CRITICAL' ? 'CRITICAL' : 'MEDIUM',
+        actionUrl: '/recalls',
+        metadata: { recallId: id },
+      });
+    }
+
+    return updated;
   }
 
   findAll() {
     return this.prisma.recall.findMany({
       include: {
         batch: true,
+        tasks: { select: { status: true } },
       },
       orderBy: {
         createdAt: 'desc',

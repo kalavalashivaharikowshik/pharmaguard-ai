@@ -28,8 +28,10 @@ export class UsersService {
   findByEmail(
     email: string,
   ) {
+    // Password hashes are omitted globally; login needs it explicitly.
     return this.prisma.user.findUnique({
       where: { email },
+      omit: { password: false },
     });
   }
 
@@ -62,12 +64,55 @@ export class UsersService {
         role: true,
         status: true,
         organizationName: true,
+        phone: true,
+        city: true,
+        latitude: true,
+        longitude: true,
+        manufacturerId: true,
         createdAt: true,
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
+  }
+
+  async updateProfile(
+    userId: string,
+    dto: Record<string, any>,
+    actorId: string,
+  ) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: dto,
+      select: {
+        id: true, fullName: true, email: true, role: true, status: true, organizationName: true,
+        phone: true, address: true, city: true, latitude: true, longitude: true, preferences: true,
+      },
+    });
+    await this.auditService.log({
+      userId: actorId,
+      action: 'PROFILE_UPDATED',
+      entity: 'USER',
+      entityId: userId,
+      description: `${user.email} profile updated.`,
+      metadata: { fields: Object.keys(dto) },
+    });
+    return user;
+  }
+
+  async updatePreferences(
+    userId: string,
+    prefs: Record<string, any>,
+  ) {
+    const current = await this.prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+    const merged = { ...((current?.preferences as Record<string, any>) || {}), ...prefs };
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { preferences: merged },
+      select: { id: true, preferences: true },
+    });
+    return user.preferences;
   }
 
   async getProfile(
@@ -86,6 +131,13 @@ export class UsersService {
         status: true,
         organizationName: true,
         phone: true,
+        address: true,
+        city: true,
+        latitude: true,
+        longitude: true,
+        preferences: true,
+        isVerified: true,
+        manufacturer: { select: { id: true, name: true, licenseNumber: true } },
         createdAt: true,
       },
     });
@@ -259,6 +311,7 @@ export class UsersService {
         where: {
           id: userId,
         },
+        omit: { password: false },
       });
 
     if (!user) {
