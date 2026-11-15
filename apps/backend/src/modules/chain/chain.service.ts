@@ -15,7 +15,7 @@ type Mode = 'external' | 'embedded' | 'off';
  *  - external: BLOCKCHAIN_RPC_URL + BLOCKCHAIN_PRIVATE_KEY + BLOCKCHAIN_CONTRACT_ADDRESS
  *              are set (local Hardhat node, Sepolia, any EVM chain).
  *  - embedded: (default when those are missing) the API starts its own in-process
- *              Ethereum chain (Ganache), deploys BatchRegistry itself and re-anchors
+ *              Ethereum chain (Hardhat Network), deploys BatchRegistry itself and re-anchors
  *              existing batches from the database. Zero setup for hosting.
  *  - off:      BLOCKCHAIN_MODE=off. Writes are no-ops.
  *
@@ -65,15 +65,15 @@ export class ChainService implements OnModuleInit {
   }
 
   private async startEmbedded() {
-    // Loaded lazily: only needed in embedded mode.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const ganache = require('ganache');
-    const chain = ganache.provider({
-      logging: { quiet: true },
-      wallet: { deterministic: true, totalAccounts: 2 },
-      chain: { chainId: 1337 },
-      miner: { instamine: 'eager' },
+    // Hardhat Network (EDR) running in-process. Loaded lazily: only needed in embedded mode.
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const { resolveConfig } = require('hardhat/internal/core/config/config-resolution');
+    const { createProvider } = require('hardhat/internal/core/providers/construction');
+    /* eslint-enable @typescript-eslint/no-require-imports */
+    const config = resolveConfig(__filename, {
+      networks: { hardhat: { chainId: 1337, loggingEnabled: false } },
     });
+    const chain = await createProvider(config, 'hardhat');
     const provider = new ethers.providers.Web3Provider(chain);
     const signer = provider.getSigner(0);
 
