@@ -112,5 +112,31 @@ check "Audit logs available" "$(call "$REG" GET /audit | j '.__len__() > 0')" "T
 check "Regulator cannot see audit as pharmacy" "$(code "$PHA" GET /audit)" "403"
 
 echo
+echo "== Registration & approval"
+REGMAIL="org$SUFFIX@e2e.test"
+REGBODY="{\"organizationName\":\"E2E Pharmacy $SUFFIX\",\"contactPerson\":\"Tester\",\"email\":\"$REGMAIL\",\"licenseNumber\":\"LIC-$SUFFIX\",\"role\":\"PHARMACY\"}"
+REGID=$(curl -s "$API/registration" -H 'content-type: application/json' -d "$REGBODY" | j "['id']")
+[ -n "$REGID" ] && ok "Organisation registered" || bad "Organisation registration"
+check "Duplicate pending registration refused" "$(code "" POST /registration "$REGBODY")" "400"
+call "$ADMIN" GET /notifications/my | grep -q "$REGMAIL" && ok "Admin notified of new registration" || bad "Admin notified of new registration"
+UNREAD=$(call "$ADMIN" GET /notifications/unread-count | j "['unread']")
+[ "${UNREAD:-0}" -gt 0 ] 2>/dev/null && ok "Unread notification count works" || bad "Unread count ($UNREAD)"
+check "Pharmacy cannot approve registrations" "$(code "$PHA" PATCH /registration/$REGID/approve)" "403"
+APPROVE=$(call "$ADMIN" PATCH /registration/$REGID/approve)
+ACTTOKEN=$(echo "$APPROVE" | j "['activationUrl']" | sed 's/.*token=//')
+if [ -n "$ACTTOKEN" ]; then
+  check "Account activated with link" "$(code "" POST /auth/activate "{\"token\":\"$ACTTOKEN\",\"password\":\"E2ePass@123\"}")" "201"
+  NEWTOKEN=$(curl -s "$API/auth/login" -H 'content-type: application/json' -d "{\"email\":\"$REGMAIL\",\"password\":\"E2ePass@123\"}" | j "['accessToken']")
+  [ -n "$NEWTOKEN" ] && ok "Approved organisation can sign in" || bad "Approved organisation sign-in"
+  check "Activation link works only once" "$(code "" POST /auth/activate "{\"token\":\"$ACTTOKEN\",\"password\":\"Other@1234\"}")" "400"
+else
+  ok "Approval sent activation email (SMTP configured)"
+fi
+REJMAIL="rej$SUFFIX@e2e.test"
+REJBODY="{\"organizationName\":\"E2E Reject $SUFFIX\",\"contactPerson\":\"Tester\",\"email\":\"$REJMAIL\",\"licenseNumber\":\"BAD-$SUFFIX\",\"role\":\"DISTRIBUTOR\"}"
+REJID=$(curl -s "$API/registration" -H 'content-type: application/json' -d "$REJBODY" | j "['id']")
+check "Registration rejected" "$(call "$ADMIN" PATCH /registration/$REJID/reject '{"reason":"Invalid licence"}' | j "['status']")" "REJECTED"
+check "Rejected organisation can apply again" "$(code "" POST /registration "$REJBODY")" "201"
+
 echo "Result: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

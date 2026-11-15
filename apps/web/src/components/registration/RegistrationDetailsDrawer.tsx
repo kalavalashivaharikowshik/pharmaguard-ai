@@ -56,6 +56,10 @@ export default function RegistrationDetailsDrawer({
     setDocuments,
   ] = useState<any[]>([]);
 
+  const [approving, setApproving] = useState(false);
+  const [activationUrl, setActivationUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
 
 
   useEffect(() => {
@@ -86,16 +90,59 @@ export default function RegistrationDetailsDrawer({
 
   const approve =
     async () => {
-
-      await registrationService.approve(
-        registration.id,
-      );
-
-      onUpdated();
-
-      onClose();
-
+      setApproving(true);
+      try {
+        const res = await registrationService.approve(registration.id);
+        onUpdated();
+        if (res?.activationUrl) {
+          // Email is not configured: show the link so the admin can share it.
+          setActivationUrl(res.activationUrl);
+          return;
+        }
+        onClose();
+      } catch (err: any) {
+        alert(err?.response?.data?.message ?? 'Could not approve this registration.');
+      } finally {
+        setApproving(false);
+      }
     };
+
+  const copyLink = async () => {
+    if (!activationUrl) return;
+    try {
+      await navigator.clipboard.writeText(activationUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      window.prompt('Copy this activation link:', activationUrl);
+    }
+  };
+
+  if (activationUrl) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+        <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-2xl text-emerald-600">✓</div>
+          <h3 className="text-xl font-bold text-slate-900">{registration.organizationName} approved</h3>
+          <p className="mt-2 text-sm text-slate-600">
+            Email is not set up yet, so send this activation link to <b>{registration.email}</b> (for example on WhatsApp).
+            They open it to create their password. The link works once and expires in 24 hours.
+          </p>
+          <div className="mt-4 break-all rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-700">
+            {activationUrl}
+          </div>
+          <div className="mt-5 flex gap-3">
+            <button onClick={copyLink} className="flex-1 rounded-xl bg-[#0F4C81] px-4 py-3 font-semibold text-white hover:bg-[#0c3d68]">
+              {copied ? 'Copied!' : 'Copy link'}
+            </button>
+            <button onClick={onClose} className="rounded-xl border border-slate-300 px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50">
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
 
 
@@ -539,12 +586,10 @@ export default function RegistrationDetailsDrawer({
 
 
                   <Button
-
                     onClick={approve}
-
+                    disabled={approving}
                   >
-
-                    Approve Registration
+                    {approving ? 'Approving…' : 'Approve Registration'}
 
                   </Button>
 
