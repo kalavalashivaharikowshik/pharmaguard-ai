@@ -1,13 +1,33 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import { MailerService } from '@nestjs-modules/mailer';
 
 @Injectable()
 export class EmailService {
 
+  private readonly logger = new Logger(EmailService.name);
+
   constructor(
     private readonly mailer: MailerService,
   ) {}
+
+  /**
+   * Sends mail when SMTP is configured. Without SMTP (or if sending fails) the
+   * message is logged instead, so flows like registration approval and
+   * password reset never fail because of email.
+   */
+  private async send(options: { to: string; subject: string; html: string }) {
+    if (!process.env.SMTP_HOST) {
+      const link = options.html.match(/href="([^"]+)"/)?.[1];
+      this.logger.warn(`[Email disabled] "${options.subject}" to ${options.to}${link ? ` link: ${link}` : ''}`);
+      return;
+    }
+    try {
+      await this.mailer.sendMail(options);
+    } catch (err) {
+      this.logger.error(`Email to ${options.to} failed: ${(err as Error).message}`);
+    }
+  }
 
   async sendActivationEmail(
     email: string,
@@ -17,7 +37,7 @@ export class EmailService {
     const url =
       `${process.env.FRONTEND_URL}/activate?token=${token}`;
 
-    await this.mailer.sendMail({
+    await this.send({
 
       to: email,
 
@@ -97,7 +117,7 @@ export class EmailService {
     const url =
       `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
 
-    await this.mailer.sendMail({
+    await this.send({
 
       to: email,
 
@@ -130,7 +150,7 @@ export class EmailService {
     email: string,
   ) {
 
-    await this.mailer.sendMail({
+    await this.send({
 
       to: email,
 
@@ -162,7 +182,7 @@ export class EmailService {
     reason: string,
   ) {
 
-    await this.mailer.sendMail({
+    await this.send({
 
       to: email,
 
@@ -196,7 +216,7 @@ export class EmailService {
     message: string,
   ) {
 
-    await this.mailer.sendMail({
+    await this.send({
 
       to: email,
 
@@ -214,7 +234,7 @@ export class EmailService {
     message: string,
   ) {
 
-    await this.mailer.sendMail({
+    await this.send({
 
       to: email,
 
@@ -232,7 +252,7 @@ export class EmailService {
     reportUrl: string,
   ) {
 
-    await this.mailer.sendMail({
+    await this.send({
 
       to: email,
 

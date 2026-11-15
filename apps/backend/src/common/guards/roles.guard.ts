@@ -29,18 +29,8 @@ export class RolesGuard
         ],
       );
 
-    console.log(
-      'Required Roles:',
-      requiredRoles,
-    );
-
     const request =
       context.switchToHttp().getRequest();
-
-    console.log(
-      'Request User:',
-      request.user,
-    );
 
     if (!requiredRoles) {
       return true;
@@ -48,15 +38,14 @@ export class RolesGuard
 
     const user = request.user;
 
+    if (!user?.role) {
+      return false;
+    }
+
     const result =
       requiredRoles.includes(
         user.role,
       );
-
-    console.log(
-      'Role Check Result:',
-      result,
-    );
 
     return result;
   }
