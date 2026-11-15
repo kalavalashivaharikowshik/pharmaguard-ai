@@ -37,7 +37,8 @@ services:
       # Free key from https://aistudio.google.com/apikey
       - key: GEMINI_API_KEY
         sync: false
-      # Sepolia testnet (see docs/DEPLOYMENT.md)
+      # Leave the three BLOCKCHAIN_* values empty to use the embedded in-app chain.
+      # Fill them in only to use Sepolia (see docs/DEPLOYMENT.md).
       - key: BLOCKCHAIN_NETWORK
         value: sepolia
       - key: BLOCKCHAIN_RPC_URL
