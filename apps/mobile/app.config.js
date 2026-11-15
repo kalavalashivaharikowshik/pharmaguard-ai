@@ -50,8 +50,8 @@ module.exports = () => ({
     ],
     extra: {
       apiUrl: process.env.EXPO_PUBLIC_API_URL,
-      // Paste the project ID printed by `npx eas-cli init` here (or set EAS_PROJECT_ID).
-      eas: { projectId: process.env.EAS_PROJECT_ID || 'PASTE-YOUR-EAS-PROJECT-ID' },
+      // After `npx eas-cli init`, replace the next line with: eas: { projectId: 'your-id' },
+      eas: process.env.EAS_PROJECT_ID ? { projectId: process.env.EAS_PROJECT_ID } : undefined,
     },
   },
 });
