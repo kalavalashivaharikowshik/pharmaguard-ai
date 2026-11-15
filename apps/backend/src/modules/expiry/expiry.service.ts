@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 import {
   NotificationType,
@@ -15,7 +16,9 @@ import {
 } from '@prisma/client';
 
 @Injectable()
-export class ExpiryService {
+export class ExpiryService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(ExpiryService.name);
+
   constructor(
     private prisma: PrismaService,
 
@@ -25,6 +28,21 @@ export class ExpiryService {
     private notificationsService:
       NotificationsService,
   ) {}
+
+  /** Runs automatically every day at 1 AM (server time). */
+  @Cron(CronExpression.EVERY_DAY_AT_1AM, { name: 'daily-expiry-check' })
+  async scheduledCheck() {
+    const result = await this.checkExpiringBatches();
+    this.logger.log(`Scheduled expiry check: ${JSON.stringify(result)}`);
+  }
+
+  /** Also runs shortly after start-up, so free-tier hosts that sleep still catch expiries. */
+  onApplicationBootstrap() {
+    if (process.env.NODE_ENV === 'test') return;
+    setTimeout(() => {
+      this.scheduledCheck().catch((err) => this.logger.warn(`Start-up expiry check failed: ${err.message}`));
+    }, 20_000);
+  }
 
   async checkExpiringBatches() {
 

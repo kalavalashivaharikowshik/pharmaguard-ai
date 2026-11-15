@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Query,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -14,8 +15,11 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 import { ComplianceService } from './compliance.service';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 
+@ApiTags('Compliance')
+@ApiBearerAuth()
 @Controller('compliance')
 @UseGuards(
   JwtAuthGuard,
@@ -29,6 +33,12 @@ export class ComplianceController {
   constructor(
     private complianceService: ComplianceService,
   ) {}
+
+  /** Violation log: blocked sales, tampering, overdue recalls, unknown products. */
+  @Get('violations')
+  getViolations(@Query('type') type?: string) {
+    return this.complianceService.getViolations(type);
+  }
 
   @Get('summary')
   getSummary() {

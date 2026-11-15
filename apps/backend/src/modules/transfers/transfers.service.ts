@@ -73,10 +73,20 @@ export class TransfersService {
 
   if (
     sender.role === 'DISTRIBUTOR' &&
-    receiver.role !== 'PHARMACY'
+    receiver.role !== 'PHARMACY' &&
+    receiver.role !== 'HOSPITAL'
   ) {
     throw new BadRequestException(
-      'Distributors can only transfer inventory to Pharmacies.',
+      'Distributors can only transfer inventory to Pharmacies or Hospitals.',
+    );
+  }
+
+  if (
+    sender.role !== 'MANUFACTURER' &&
+    sender.role !== 'DISTRIBUTOR'
+  ) {
+    throw new BadRequestException(
+      'Only Manufacturers and Distributors can create transfers.',
     );
   }
  
@@ -424,6 +434,7 @@ export class TransfersService {
 
         allowedRoles = [
           'PHARMACY',
+          'HOSPITAL',
         ];
 
         break;

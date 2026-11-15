@@ -23,14 +23,17 @@ const users: {
   role: UserRole;
   organizationName: string;
   phone: string;
+  city: string;
+  latitude: number;
+  longitude: number;
   linkManufacturer?: boolean;
 }[] = [
-  { email: 'admin@pharmaguard.ai', fullName: 'Super Admin', role: 'SUPER_ADMIN', organizationName: 'PharmaGuard AI', phone: '+91 90000 00001' },
-  { email: 'regulator@pharmaguard.ai', fullName: 'Drug Regulator', role: 'REGULATOR', organizationName: 'Central Drugs Standard Control Organisation', phone: '+91 90000 00002' },
-  { email: 'manufacturer@pharmaguard.ai', fullName: 'Sun Life Pharma', role: 'MANUFACTURER', organizationName: 'Sun Life Pharmaceuticals', phone: '+91 90000 00003', linkManufacturer: true },
-  { email: 'distributor@pharmaguard.ai', fullName: 'MedLine Distributors', role: 'DISTRIBUTOR', organizationName: 'MedLine Distributors Pvt Ltd', phone: '+91 90000 00004' },
-  { email: 'pharmacy@pharmaguard.ai', fullName: 'Apollo Pharmacy Kukatpally', role: 'PHARMACY', organizationName: 'Apollo Pharmacy', phone: '+91 90000 00005' },
-  { email: 'hospital@pharmaguard.ai', fullName: 'City Care Hospital', role: 'HOSPITAL', organizationName: 'City Care Hospital', phone: '+91 90000 00006' },
+  { email: 'admin@pharmaguard.ai', fullName: 'Super Admin', role: 'SUPER_ADMIN', organizationName: 'PharmaGuard AI', phone: '+91 90000 00001', city: 'Hyderabad', latitude: 17.4435, longitude: 78.3772 },
+  { email: 'regulator@pharmaguard.ai', fullName: 'Drug Regulator', role: 'REGULATOR', organizationName: 'Central Drugs Standard Control Organisation', phone: '+91 90000 00002', city: 'New Delhi', latitude: 28.6139, longitude: 77.209 },
+  { email: 'manufacturer@pharmaguard.ai', fullName: 'Sun Life Pharma', role: 'MANUFACTURER', organizationName: 'Sun Life Pharmaceuticals', phone: '+91 90000 00003', city: 'Hyderabad', latitude: 17.604, longitude: 78.556, linkManufacturer: true },
+  { email: 'distributor@pharmaguard.ai', fullName: 'MedLine Distributors', role: 'DISTRIBUTOR', organizationName: 'MedLine Distributors Pvt Ltd', phone: '+91 90000 00004', city: 'Secunderabad', latitude: 17.4399, longitude: 78.4983 },
+  { email: 'pharmacy@pharmaguard.ai', fullName: 'Apollo Pharmacy Kukatpally', role: 'PHARMACY', organizationName: 'Apollo Pharmacy', phone: '+91 90000 00005', city: 'Hyderabad', latitude: 17.4948, longitude: 78.3996 },
+  { email: 'hospital@pharmaguard.ai', fullName: 'City Care Hospital', role: 'HOSPITAL', organizationName: 'City Care Hospital', phone: '+91 90000 00006', city: 'Vijayawada', latitude: 16.5062, longitude: 80.648 },
 ];
 
 async function main() {
@@ -51,7 +54,7 @@ async function main() {
   for (const u of users) {
     await prisma.user.upsert({
       where: { email: u.email },
-      update: {},
+      update: { city: u.city, latitude: u.latitude, longitude: u.longitude },
       create: {
         email: u.email,
         password: hash,
@@ -62,6 +65,9 @@ async function main() {
         status: 'ACTIVE',
         isVerified: true,
         manufacturerId: u.linkManufacturer ? manufacturer.id : null,
+        city: u.city,
+        latitude: u.latitude,
+        longitude: u.longitude,
       },
     });
   }

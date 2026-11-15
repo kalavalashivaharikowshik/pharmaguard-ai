@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { AnalyticsController } from './analytics.controller';
 
 import { AnalyticsService } from './analytics.service';
+import { SafetyAnalyticsService } from './safety-analytics.service';
 
 @Module({
 
@@ -12,6 +13,7 @@ import { AnalyticsService } from './analytics.service';
 
   providers: [
     AnalyticsService,
+    SafetyAnalyticsService,
   ],
 
   exports: [

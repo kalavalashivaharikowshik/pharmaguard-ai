@@ -9,6 +9,8 @@ from './notifications.gateway';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { FirebaseService } from '../firebase/firebase.service';
+import { QueueService } from '../infra/queue.service';
+import { SmsService } from '../infra/sms.service';
 
 @Injectable()
 export class NotificationsService {
@@ -16,7 +18,38 @@ export class NotificationsService {
     private prisma: PrismaService,
     private gateway: NotificationsGateway,
     private firebaseService: FirebaseService,
-  ) {}
+
+    private queue: QueueService,
+
+    private sms: SmsService,
+  ) {
+    // Push and SMS delivery run in the background job queue (BullMQ when Redis is configured).
+    this.queue.register('deliver-notification', (job) => this.deliver(job));
+  }
+
+  /** Background delivery: mobile push + SMS for urgent alerts, honouring user preferences. */
+  private async deliver(job: {
+    userId: string;
+    title: string;
+    message: string;
+    priority: string;
+    actionUrl?: string;
+  }) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: job.userId },
+      select: { phone: true, preferences: true },
+    });
+    const prefs = (user?.preferences as Record<string, any>) || {};
+
+    if (prefs.push !== false) {
+      await this.sendPushNotification(job.userId, job.title, job.message, job.actionUrl);
+    }
+
+    const urgent = job.priority === 'CRITICAL' || job.priority === 'HIGH';
+    if (urgent && prefs.sms !== false && user?.phone) {
+      await this.sms.send(user.phone, `PharmaGuard AI: ${job.title}. ${job.message}`);
+    }
+  }
 
   private async sendPushNotification(
 
@@ -42,10 +75,8 @@ export class NotificationsService {
 
       });
 
-    if (!devices.length) {
-
+    if (!devices.length || !this.firebaseService.enabled) {
       return;
-
     }
 
     const messaging =
@@ -149,17 +180,13 @@ export class NotificationsService {
 
   );
 
-  await this.sendPushNotification(
-
-    data.userId,
-
-    data.title,
-
-    data.message,
-
-    data.actionUrl,
-
-  );
+  await this.queue.add('deliver-notification', {
+    userId: data.userId,
+    title: data.title,
+    message: data.message,
+    priority: data.priority,
+    actionUrl: data.actionUrl,
+  });
 
   return notification;
     }

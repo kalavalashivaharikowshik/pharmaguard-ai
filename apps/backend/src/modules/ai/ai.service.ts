@@ -1,213 +1,134 @@
-import {
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-
-import { RecallTaskStatus } from '@prisma/client';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { RecallAgentService } from './recall-agent.service';
 
-import { RevocationService }
-from '../revocation/revocation.service';
-
+/** Recall tasks and impact queries used by the AI recall workflow. */
 @Injectable()
 export class AiService {
   constructor(
     private prisma: PrismaService,
-    private revocationService:
-    RevocationService,
+    private audit: AuditService,
+    private recallAgent: RecallAgentService,
   ) {}
 
-  async createRecallTasks(
-    recallId: string,
-  ) {
-    const recall =
-      await this.prisma.recall.findUnique({
-        where: {
-          id: recallId,
-        },
+  async getRecallImpact(recallId: string) {
+    const recall = await this.prisma.recall.findUnique({ where: { id: recallId }, include: { batch: true } });
+    if (!recall) throw new NotFoundException('Recall not found');
 
-        include: {
-          batch: true,
-        },
-      });
+    const holdings = await this.prisma.inventory.findMany({
+      where: { batchId: recall.batchId, quantity: { gt: 0 } },
+    });
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: holdings.map((h) => h.ownerUserId) } },
+      select: { id: true, fullName: true, organizationName: true, role: true, city: true, latitude: true, longitude: true },
+    });
+    const tasks = await this.prisma.recallTask.findMany({ where: { recallId } });
+    const byUser = new Map(users.map((u) => [u.id, u]));
+    const taskByUser = new Map(tasks.map((t) => [t.userId, t]));
 
-    if (!recall) {
-      throw new NotFoundException(
-        'Recall not found',
-      );
-    }
+    const locations = holdings.map((h) => {
+      const u = byUser.get(h.ownerUserId);
+      const t = taskByUser.get(h.ownerUserId);
+      return {
+        userId: h.ownerUserId,
+        organization: u?.organizationName ?? u?.fullName,
+        role: u?.role,
+        city: u?.city,
+        latitude: u?.latitude,
+        longitude: u?.longitude,
+        quantity: h.quantity,
+        taskStatus: t?.status ?? 'NO_TASK',
+      };
+    });
 
-    const inventories =
-      await this.prisma.inventory.findMany({
-        where: {
-          batchId:
-            recall.batchId,
-        },
-      });
-
-    const tasks: any[] = [];
-
-    for (const inventory of inventories) {
-      const task =
-        await this.prisma.recallTask.create({
-          data: {
-            recallId:
-              recall.id,
-
-            userId:
-              inventory.ownerUserId,
-
-            status:
-              RecallTaskStatus.PENDING,
-          },
-        });
-
-      tasks.push(task);
-    }
-
+    const completed = tasks.filter((t) => t.status === 'COMPLETED').length;
     return {
       recallId,
-      tasksCreated:
-        tasks.length,
-      tasks,
+      recallNumber: recall.recallNumber,
+      batchNumber: recall.batch.batchNumber,
+      affectedOrganizations: holdings.length,
+      affectedUnits: holdings.reduce((n, h) => n + h.quantity, 0),
+      tasks: { total: tasks.length, completed, overdue: tasks.filter((t) => t.status === 'OVERDUE').length },
+      progress: tasks.length ? Math.round((completed / tasks.length) * 100) : 0,
+      dueDate: recall.dueDate,
+      locations,
     };
   }
 
-  async getRecallImpact(
-    recallId: string,
-  ) {
-    const recall =
-      await this.prisma.recall.findUnique({
-        where: {
-          id: recallId,
-        },
-      });
-
-    if (!recall) {
-      throw new NotFoundException(
-        'Recall not found',
-      );
+  async getRecallSummary(recallId: string) {
+    const recall = await this.prisma.recall.findUnique({ where: { id: recallId } });
+    if (!recall) throw new NotFoundException('Recall not found');
+    if (!recall.aiSummary) {
+      const result = await this.recallAgent.run(recallId);
+      return { summary: result.summary ?? '', usedLlm: !!result.usedLlm };
     }
-
-    const inventories =
-      await this.prisma.inventory.findMany({
-        where: {
-          batchId:
-            recall.batchId,
-        },
-      });
-
-    const affectedUnits =
-      inventories.reduce(
-        (sum, inventory) =>
-          sum + inventory.quantity,
-        0,
-      );
-
-    return {
-      recallId,
-
-      affectedOrganizations:
-        inventories.length,
-
-      affectedUnits,
-    };
+    return { summary: recall.aiSummary };
   }
 
-  async generateRecallSummary(
-    recallId: string,
-  ) {
-    const recall =
-      await this.prisma.recall.findUnique({
-        where: {
-          id: recallId,
-        },
-
-        include: {
-          batch: true,
-        },
-      });
-
-    if (!recall) {
-      throw new NotFoundException(
-        'Recall not found',
-      );
-    }
-
-    const impact =
-      await this.getRecallImpact(
-        recallId,
-      );
-
-    return {
-      summary:
-        `Recall ${recall.recallNumber} affects ${impact.affectedOrganizations} organizations holding ${impact.affectedUnits} units of ${recall.batch.batchNumber}. Immediate recall action is recommended.`,
-    };
-  }
-
-  async completeTask(
-    taskId: string,
-  ) {
-    return this.prisma.recallTask.update({
-      where: {
-        id: taskId,
-      },
-
-      data: {
-        status:
-          RecallTaskStatus.COMPLETED,
-      },
+  listRecallTasks(recallId: string) {
+    return this.prisma.recallTask.findMany({
+      where: { recallId },
+      include: { user: { select: { id: true, fullName: true, organizationName: true, role: true, city: true } } },
+      orderBy: { createdAt: 'asc' },
     });
   }
 
-  async finalizeRecall(
-    recallId: string,
-  ) {
+  myTasks(userId: string) {
+    return this.prisma.recallTask.findMany({
+      where: { userId },
+      include: { recall: { include: { batch: { select: { id: true, batchNumber: true, drugName: true } } } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 
-    const recall =
-      await this.prisma.recall.findUnique({
-        where: {
-          id: recallId,
-        },
-      });
-
-    if (!recall) {
-      throw new NotFoundException(
-        'Recall not found',
-      );
+  async completeTask(taskId: string, userId: string, role: string, notes?: string) {
+    const task = await this.prisma.recallTask.findUnique({ where: { id: taskId }, include: { recall: true } });
+    if (!task) throw new NotFoundException('Task not found');
+    if (task.userId !== userId && role !== 'SUPER_ADMIN' && role !== 'REGULATOR') {
+      throw new ForbiddenException('You can only complete your own recall tasks.');
     }
 
-    const tasks =
-      await this.prisma.recallTask.findMany({
-        where: {
-          recallId,
-        },
-      });
+    const updated = await this.prisma.recallTask.update({
+      where: { id: taskId },
+      data: { status: 'COMPLETED', completedAt: new Date(), notes },
+    });
 
-    const allCompleted =
-      tasks.every(
-        task =>
-          task.status ===
-          RecallTaskStatus.COMPLETED,
-      );
+    // Stock stays quarantined in inventory (sales are already blocked because the
+    // batch is RECALLED). When the recall is finalised the batch is revoked and
+    // every holder receives a return/disposal notice to remove it for good.
 
-    if (!allCompleted) {
-      return {
-        message:
-          'Recall tasks still pending',
-      };
+    await this.audit.log({
+      userId,
+      action: 'RECALL_TASK_COMPLETED',
+      entity: 'RECALL',
+      entityId: task.recallId,
+      description: `Recall task completed for recall ${task.recall.recallNumber}.`,
+      metadata: { taskId, notes },
+    });
+
+    // Finalise immediately when this was the last open task.
+    const open = await this.prisma.recallTask.count({
+      where: { recallId: task.recallId, status: { not: 'COMPLETED' } },
+    });
+    let recallCompleted = false;
+    if (open === 0 && task.recall.status === 'ACTIVE') {
+      await this.recallAgent.finalize(task.recallId);
+      recallCompleted = true;
     }
 
-    await this.revocationService
-      .revokeBatch(
-        recall.batchId,
-        'RECALL_COMPLETED',
-      );
+    return { ...updated, recallCompleted };
+  }
 
-    return {
-      message:
-        'Recall finalized and batch revoked',
-    };
+  async finalizeRecall(recallId: string) {
+    const recall = await this.prisma.recall.findUnique({ where: { id: recallId }, include: { tasks: true } });
+    if (!recall) throw new NotFoundException('Recall not found');
+    if (recall.status === 'COMPLETED') return { message: 'Recall already completed' };
+    if (recall.tasks.some((t) => t.status !== 'COMPLETED')) {
+      return { message: 'Recall tasks still pending' };
+    }
+    await this.recallAgent.finalize(recallId);
+    return { message: 'Recall finalized and batch revoked' };
   }
 }
