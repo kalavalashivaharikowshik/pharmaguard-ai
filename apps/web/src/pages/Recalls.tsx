@@ -17,6 +17,7 @@ import type {
   Recall,
 } from '../types/recall';
 
+import RecallAIPanel from '../components/recalls/RecallAIPanel';
 import RecallDetailsDrawer
   from '../components/recalls/RecallDetailsDrawer';
 
@@ -100,24 +101,14 @@ export default function Recalls() {
 
   }
 
+  const [refreshKey, setRefreshKey] = useState(0);
+
   useEffect(() => {
-
-    const load =
-      async () => {
-
-        const data =
-          await recallService
-            .getAll();
-
-        setRecalls(
-          data,
-        );
-
-      };
-
-    load();
-
-  }, []);
+    recallService
+      .getAll()
+      .then(setRecalls)
+      .catch(() => setRecalls([]));
+  }, [refreshKey]);
 
   return (
 
@@ -125,7 +116,7 @@ export default function Recalls() {
 
       <div className="space-y-8">
 
-        <div className="rounded-3xl bg-gradient-to-r from-[#0F766E] via-[#0D9488] to-[#14B8A6] p-8 text-white shadow-xl">
+        <div className="rounded-3xl bg-gradient-to-r from-[#0F4C81] via-[#155A94] to-[#2E8B57] p-8 text-white shadow-xl">
 
           <h1 className="text-4xl font-bold">
 
@@ -140,6 +131,8 @@ export default function Recalls() {
           </p>
 
         </div>
+
+        <RecallAIPanel onChanged={() => setRefreshKey((k) => k + 1)} />
 
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
 

@@ -26,8 +26,10 @@ import {
   useAuth,
 } from '../../auth/AuthContext';
 
-import NotificationToast
-from '../notifications/NotificationToast';
+import NotificationToast from '../notifications/NotificationToast';
+import ThemeToggle from '../ui/ThemeToggle';
+import { useLocation } from 'react-router-dom';
+import { ROLE_LABEL } from '../../auth/roles';
 
 import type {
   Notification,
@@ -51,6 +53,16 @@ export default function Header({
 
   const navigate =
     useNavigate();
+
+  const location = useLocation();
+  const TITLES: Record<string, string> = {
+    '/': 'Dashboard', '/ai-insights': 'AI Insights', '/assistant': 'AI Assistant', '/analytics': 'Analytics',
+    '/batches': 'Batches', '/inventory': 'Inventory', '/transfers': 'Transfers', '/manufacturers': 'Manufacturers',
+    '/map': 'Stock Map', '/recalls': 'Recalls', '/revocation': 'Revocation', '/disposals': 'Disposal & Returns',
+    '/blockchain': 'Blockchain', '/compliance': 'Compliance', '/violations': 'Violations',
+    '/notifications': 'Notifications', '/users': 'Users', '/registration': 'Registration Requests', '/settings': 'Settings',
+  };
+  const pageTitle = TITLES[location.pathname] ?? 'PharmaGuard AI';
 
   const { logout } =
     useAuth();
@@ -208,11 +220,7 @@ flex
 
 items-center
 
-justify-between
-
-px-8
-
-"
+justify-between gap-3 px-4 sm:px-8"
 
 >
 
@@ -222,11 +230,7 @@ className="
 
 flex
 
-items-center
-
-gap-5
-
-"
+items-center gap-2 sm:gap-5"
 
 >
 
@@ -272,35 +276,13 @@ transition
 
 className="
 
-text-2xl
-
-font-bold
-
-text-slate-800
-
-"
-
->
-
-Dashboard
-
-</h2>
+text-lg sm:text-2xl font-bold text-slate-800 truncate" >{pageTitle}</h2>
 
 <p
 
 className="
 
-text-sm
-
-text-slate-500
-
-"
-
->
-
-PharmaGuard AI
-
-</p>
+hidden sm:block text-sm text-slate-500" >PharmaGuard AI · {ROLE_LABEL[localStorage.getItem('role') ?? ''] ?? ''}</p>
 
 </div>
 
@@ -319,6 +301,8 @@ gap-5
 "
 
 >
+
+<ThemeToggle />
 
 <div className="relative">
 
@@ -624,19 +608,12 @@ gap-4
 
 className="
 
-h-12
-
-w-12
-
-rounded-full
-
-bg-teal-700
+hidden sm:flex h-12 w-12 shrink-0 rounded-full bg-teal-700
 
 text-white
 
 font-bold
 
-flex
 
 items-center
 
@@ -652,16 +629,11 @@ text-lg
 
 </div>
 
-<div>
-
+<div className="hidden md:block">
 <p
-
-className="font-semibold"
-
+className="font-semibold text-slate-800"
 >
-
 {user.fullName}
-
 </p>
 
 <p
@@ -700,26 +672,12 @@ hover:bg-red-700
 
 text-white
 
-px-4
-
-py-2.5
-
-rounded-xl
-
-transition
-
-"
-
->
+px-3 sm:px-4 py-2.5 rounded-xl transition " aria-label="Logout" >
 
 <LogOut
-
 size={18}
-
 />
-
-Logout
-
+<span className="hidden sm:inline">Logout</span>
 </button>
 
 </div>

@@ -36,7 +36,8 @@ export class BatchesController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.REGULATOR, UserRole.MANUFACTURER)
   findAll(@CurrentUser() user: any) {
     return this.batchesService.findAll(user.userId, user.role);
   }

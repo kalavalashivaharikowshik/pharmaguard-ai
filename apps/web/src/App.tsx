@@ -1,34 +1,48 @@
+import { lazy, Suspense } from 'react';
 import {
   Routes,
   Route,
 } from 'react-router-dom';
 
-import Dashboard from './pages/Dashboard';
-import Inventory from './pages/Inventory';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Batches from './pages/Batches';
-import Recalls from './pages/Recalls';
-import Transfers from './pages/Transfers';
-import Revocation from './pages/Revocation';
-import Compliance from './pages/Compliance';
-import Blockchain from './pages/Blockchain';
-import Unauthorized from './pages/Unauthorized';
-import Settings from './pages/Settings';
-import Users from './pages/Users';
-import Notifications from './pages/Notifications';
-import RegistrationRequests from './pages/RegistrationRequests';
-import ActivateAccount from './pages/ActivateAccount';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Inventory = lazy(() => import('./pages/Inventory'));
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const Batches = lazy(() => import('./pages/Batches'));
+const Recalls = lazy(() => import('./pages/Recalls'));
+const Transfers = lazy(() => import('./pages/Transfers'));
+const Revocation = lazy(() => import('./pages/Revocation'));
+const Compliance = lazy(() => import('./pages/Compliance'));
+const Blockchain = lazy(() => import('./pages/Blockchain'));
+const Unauthorized = lazy(() => import('./pages/Unauthorized'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Users = lazy(() => import('./pages/Users'));
+const Notifications = lazy(() => import('./pages/Notifications'));
+const RegistrationRequests = lazy(() => import('./pages/RegistrationRequests'));
+const ActivateAccount = lazy(() => import('./pages/ActivateAccount'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 
 import ProtectedRoute from './auth/ProtectedRoute';
+const AIInsights = lazy(() => import('./pages/AIInsights'));
+const Assistant = lazy(() => import('./pages/Assistant'));
+const Analytics = lazy(() => import('./pages/Analytics'));
+const Manufacturers = lazy(() => import('./pages/Manufacturers'));
+const StockMap = lazy(() => import('./pages/StockMap'));
+const Disposals = lazy(() => import('./pages/Disposals'));
+const Violations = lazy(() => import('./pages/Violations'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 import RoleProtectedRoute from './auth/RoleProtectedRoute';
 
 export default function App() {
 
   return (
 
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface)] text-slate-500">Loading…</div>
+      }
+    >
     <Routes>
 
       <Route
@@ -109,8 +123,6 @@ export default function App() {
                 'SUPER_ADMIN',
                 'REGULATOR',
                 'MANUFACTURER',
-                'DISTRIBUTOR',
-                'PHARMACY',
               ]}
             >
 
@@ -160,6 +172,7 @@ export default function App() {
                 'MANUFACTURER',
                 'DISTRIBUTOR',
                 'REGULATOR',
+                'PHARMACY',
               ]}
             >
 
@@ -314,7 +327,33 @@ export default function App() {
         }
       />
 
+    {/* NEW MODULES */}
+      {(
+        [
+          ['/ai-insights', <AIInsights />, ['SUPER_ADMIN', 'REGULATOR', 'MANUFACTURER', 'DISTRIBUTOR', 'PHARMACY']],
+          ['/assistant', <Assistant />, ['SUPER_ADMIN', 'REGULATOR', 'MANUFACTURER', 'DISTRIBUTOR', 'PHARMACY']],
+          ['/analytics', <Analytics />, ['SUPER_ADMIN', 'REGULATOR']],
+          ['/manufacturers', <Manufacturers />, ['SUPER_ADMIN', 'REGULATOR']],
+          ['/map', <StockMap />, ['SUPER_ADMIN', 'REGULATOR', 'MANUFACTURER']],
+          ['/disposals', <Disposals />, ['SUPER_ADMIN', 'REGULATOR', 'MANUFACTURER', 'DISTRIBUTOR', 'PHARMACY']],
+          ['/violations', <Violations />, ['SUPER_ADMIN', 'REGULATOR']],
+        ] as [string, React.ReactNode, string[]][]
+      ).map(([path, element, roles]) => (
+        <Route
+          key={path}
+          path={path}
+          element={
+            <ProtectedRoute>
+              <RoleProtectedRoute roles={roles}>{element}</RoleProtectedRoute>
+            </ProtectedRoute>
+          }
+        />
+      ))}
+
+      <Route path="*" element={<NotFound />} />
+
     </Routes>
+    </Suspense>
 
   );
 }
