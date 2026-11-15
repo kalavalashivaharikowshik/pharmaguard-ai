@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { Module } from '@nestjs/common';
 
 import { NotificationsController } from './notifications.controller';
@@ -11,10 +12,11 @@ import { JwtModule } from '@nestjs/jwt';
 
   imports: [
 
-    JwtModule.register({
-
-      secret: 'pharmaguard-super-secret-key',
-
+    JwtModule.registerAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: config.getOrThrow<string>('JWT_SECRET'),
+      }),
     }),
 
     FirebaseModule,

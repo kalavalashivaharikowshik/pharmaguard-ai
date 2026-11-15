@@ -29,3 +29,7 @@
 
 # Snapshot cheatcodes output
 /snapshots
+
+# Local deployments
+/deployments/localhost.json
+/deployments/hardhat.json
