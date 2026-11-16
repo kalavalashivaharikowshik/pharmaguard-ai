@@ -24,6 +24,8 @@ import {
   userService,
 } from '../services/userService';
 
+import { profileService } from '../services/extraServices';
+
 
 export default function Settings() {
 
@@ -47,6 +49,45 @@ export default function Settings() {
     setNewPassword,
   ] =
     useState('');
+
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ fullName: '', phone: '', city: '', address: '' });
+
+  const startEdit = () => {
+    setForm({
+      fullName: profile?.fullName ?? '',
+      phone: profile?.phone ?? '',
+      city: profile?.city ?? '',
+      address: profile?.address ?? '',
+    });
+    setEditing(true);
+  };
+
+  const saveProfile = async () => {
+    const phone = form.phone.trim();
+    if (phone && phone.replace(/\D/g, '').length < 10) {
+      toast.error('Enter a valid mobile number, e.g. 98765 43210 or +91 98765 43210');
+      return;
+    }
+    setSaving(true);
+    try {
+      const updated = await profileService.update({
+        fullName: form.fullName.trim() || undefined,
+        phone: phone || undefined,
+        city: form.city.trim() || undefined,
+        address: form.address.trim() || undefined,
+      });
+      setProfile({ ...profile, ...updated });
+      setEditing(false);
+      toast.success('Profile updated');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message;
+      toast.error(Array.isArray(msg) ? msg.join(', ') : msg ?? 'Could not update profile');
+    } finally {
+      setSaving(false);
+    }
+  };
 
 
 
@@ -355,11 +396,52 @@ export default function Settings() {
 
 
 
-            <h3 className="mb-5 text-lg font-semibold">
+            <div className="mb-5 flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Profile Information</h3>
+              {!editing && (
+                <button
+                  onClick={startEdit}
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Edit
+                </button>
+              )}
+            </div>
 
-              Profile Information
-
-            </h3>
+            {editing && (
+              <div className="mb-6 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <label className="block text-sm font-medium text-slate-600">
+                  Full name
+                  <Input className="mt-1" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />
+                </label>
+                <label className="block text-sm font-medium text-slate-600">
+                  Mobile number (for SMS alerts)
+                  <Input
+                    className="mt-1"
+                    type="tel"
+                    placeholder="98765 43210"
+                    value={form.phone}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  />
+                </label>
+                <label className="block text-sm font-medium text-slate-600">
+                  City
+                  <Input className="mt-1" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+                </label>
+                <label className="block text-sm font-medium text-slate-600">
+                  Address
+                  <Input className="mt-1" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+                </label>
+                <div className="flex gap-3 pt-1">
+                  <Button onClick={saveProfile} disabled={saving}>
+                    {saving ? 'Saving…' : 'Save'}
+                  </Button>
+                  <Button variant="secondary" onClick={() => setEditing(false)} disabled={saving}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
                       <div className="space-y-1">
 
 
