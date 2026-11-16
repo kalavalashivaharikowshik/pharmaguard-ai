@@ -9,7 +9,7 @@ import {
   getInitialNotification,
 } from '@react-native-firebase/messaging';
 
-import { Platform } from 'react-native';
+import { PermissionsAndroid, Platform } from 'react-native';
 
 import Toast from 'react-native-toast-message';
 
@@ -27,6 +27,16 @@ export const firebaseMessagingService = {
   async registerDevice() {
 
     try {
+
+      // Android 13+ only shows notifications after the user allows them.
+      if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
+        const result = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+        );
+        if (result !== PermissionsAndroid.RESULTS.GRANTED) {
+          return;
+        }
+      }
 
       const permission =
 

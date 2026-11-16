@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import {
   NotificationType,
@@ -14,6 +14,8 @@ import { SmsService } from '../infra/sms.service';
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(
     private prisma: PrismaService,
     private gateway: NotificationsGateway,
@@ -104,19 +106,25 @@ export class NotificationsService {
 
           },
 
+          // High priority so Android shows it on screen even when the app is closed.
+          android: {
+            priority: 'high',
+            notification: { sound: 'default' },
+          },
+
         });
 
       }
 
       catch (error) {
 
-        console.error(
-
-          `Failed sending push to ${device.token}`,
-
-          error,
-
-        );
+        const code = (error as { code?: string })?.code ?? '';
+        if (code.includes('registration-token-not-registered') || code.includes('invalid-registration-token')) {
+          // The app was uninstalled or the token expired: forget this device.
+          await this.prisma.deviceToken.delete({ where: { id: device.id } }).catch(() => undefined);
+        } else {
+          this.logger.error(`Push to user ${userId} failed: ${(error as Error).message}`);
+        }
 
       }
 

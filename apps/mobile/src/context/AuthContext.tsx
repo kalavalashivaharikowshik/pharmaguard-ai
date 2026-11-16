@@ -174,11 +174,15 @@ export function AuthProvider({
 
       setAuthenticated(true);
 
-      // await firebaseMessagingService.registerDevice();
-
-      // firebaseMessagingService.listenTokenRefresh();
-
-      // firebaseMessagingService.listenForegroundMessages();
+      // Register this phone for push notifications (asks permission on
+      // Android 13+). Runs in the background so login is never delayed.
+      firebaseMessagingService
+        .registerDevice()
+        .then(() => {
+          firebaseMessagingService.listenTokenRefresh();
+          firebaseMessagingService.listenForegroundMessages();
+        })
+        .catch(() => undefined);
 
       Toast.show({
 

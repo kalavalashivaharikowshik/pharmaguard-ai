@@ -47,6 +47,7 @@ export class SmsService {
         this.logger.warn(`Twilio responded ${res.status}: ${await res.text()}`);
         return false;
       }
+      this.logger.log(`SMS sent to ${to}`);
       return true;
     } catch (err) {
       this.logger.warn(`SMS failed: ${(err as Error).message}`);

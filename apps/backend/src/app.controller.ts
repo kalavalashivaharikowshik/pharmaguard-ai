@@ -7,6 +7,7 @@ import { CacheService } from './modules/infra/cache.service';
 import { QueueService } from './modules/infra/queue.service';
 import { SmsService } from './modules/infra/sms.service';
 import { GeminiService } from './modules/ai/gemini.service';
+import { getApps } from 'firebase-admin/app';
 
 @SkipThrottle()
 @Controller()
@@ -44,6 +45,10 @@ export class AppController {
         ai: this.gemini.enabled ? `gemini (${this.gemini.model})` : 'rule-based fallback',
         redis: this.cache.usingRedis && this.queue.usingRedis ? 'connected' : 'not configured (in-memory)',
         sms: this.sms.enabled ? 'twilio' : 'disabled',
+        push: getApps().length ? 'firebase' : 'disabled',
+        email: process.env.BREVO_API_KEY ? 'brevo' : process.env.SMTP_HOST ? 'smtp' : 'disabled',
+        // Base of activation / reset links in emails; must be the live website.
+        emailLinks: (process.env.FRONTEND_URL || process.env.CORS_ORIGINS?.split(',')[0] || 'http://localhost:5173').trim().replace(/\/$/, ''),
       },
     };
   }
