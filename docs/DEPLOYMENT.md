@@ -59,7 +59,8 @@ The API pays gas for every batch registration and revocation from this wallet. E
    | `FRONTEND_URL` | your Vercel URL from step 4 (you can come back and set it after) |
    | `GEMINI_API_KEY` | key from step 1 |
    | `BLOCKCHAIN_RPC_URL`, `BLOCKCHAIN_PRIVATE_KEY`, `BLOCKCHAIN_CONTRACT_ADDRESS` | leave empty for the embedded chain, or fill in from the optional Sepolia step |
-   | `SMTP_*`, `TWILIO_*`, `FIREBASE_SERVICE_ACCOUNT` | optional, leave empty to skip email / SMS / push |
+   | `BREVO_API_KEY` + `EMAIL_FROM` | optional email via Brevo's HTTPS API (use this on Render free, which blocks SMTP ports) |
+   | `SMTP_*`, `TWILIO_*`, `FIREBASE_SERVICE_ACCOUNT` | optional, leave empty to skip email (SMTP needs a paid host) / SMS / push |
 
 4. Click **Apply**. The first build takes about 5 minutes. Migrations run automatically, and `SEED_DEMO_DATA=true` creates the demo accounts.
 5. Check `https://<your-api>.onrender.com/health`. It should show `"status":"ok"` with the database, blockchain and AI status. API docs are at `/api/docs`.

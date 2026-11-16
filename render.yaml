@@ -47,7 +47,11 @@ services:
         sync: false
       - key: BLOCKCHAIN_CONTRACT_ADDRESS
         sync: false
-      # Optional: email (e.g. Gmail app password or Brevo SMTP)
+      # Optional: email. On the free plan use Brevo (HTTPS); SMTP ports are blocked.
+      - key: BREVO_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT

@@ -2,6 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { MailerService } from '@nestjs-modules/mailer';
 
+/** True when activation and reset emails can actually be delivered. */
+export const isEmailEnabled = () => !!(process.env.BREVO_API_KEY || process.env.SMTP_HOST);
+
 @Injectable()
 export class EmailService {
 
@@ -17,6 +20,7 @@ export class EmailService {
    * password reset never fail because of email.
    */
   private async send(options: { to: string; subject: string; html: string }) {
+    if (process.env.BREVO_API_KEY) return this.sendViaBrevo(options);
     if (!process.env.SMTP_HOST) {
       const link = options.html.match(/href="([^"]+)"/)?.[1];
       this.logger.warn(`[Email disabled] "${options.subject}" to ${options.to}${link ? ` link: ${link}` : ''}`);
@@ -26,6 +30,39 @@ export class EmailService {
       await this.mailer.sendMail(options);
     } catch (err) {
       this.logger.error(`Email to ${options.to} failed: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Brevo's HTTPS email API. Works on hosts that block SMTP ports, such as
+   * Render's free plan. EMAIL_FROM must be a sender verified in Brevo.
+   */
+  private async sendViaBrevo(options: { to: string; subject: string; html: string }) {
+    const from = process.env.EMAIL_FROM || process.env.SMTP_FROM || process.env.SMTP_USER;
+    if (!from) {
+      this.logger.error('BREVO_API_KEY is set but EMAIL_FROM is missing; email not sent.');
+      return;
+    }
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': process.env.BREVO_API_KEY as string,
+          'content-type': 'application/json',
+          accept: 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { name: 'PharmaGuard AI', email: from },
+          to: [{ email: options.to }],
+          subject: options.subject,
+          htmlContent: options.html,
+        }),
+      });
+      if (!res.ok) {
+        this.logger.error(`Brevo email to ${options.to} failed: ${res.status} ${await res.text()}`);
+      }
+    } catch (err) {
+      this.logger.error(`Brevo email to ${options.to} failed: ${(err as Error).message}`);
     }
   }
 

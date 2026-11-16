@@ -5,6 +5,7 @@ import {
 
 import { EmailService }
 from '../email/email.service';
+import { isEmailEnabled } from '../email/email.service';
 
 import { v4 as uuid } from 'uuid';
 
@@ -199,7 +200,7 @@ export class RegistrationService {
 
     });
 
-    const emailEnabled = !!process.env.SMTP_HOST;
+    const emailEnabled = isEmailEnabled();
     return {
       message: emailEnabled
         ? 'Registration approved. Activation email sent.'
