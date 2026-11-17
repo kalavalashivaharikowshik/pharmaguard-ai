@@ -6,6 +6,7 @@ import {
 import { EmailService }
 from '../email/email.service';
 import { isEmailEnabled } from '../email/email.service';
+import { SmsService } from '../infra/sms.service';
 
 import { v4 as uuid } from 'uuid';
 
@@ -32,6 +33,7 @@ export class RegistrationService {
     private notificationsService: NotificationsService,
     private emailService: EmailService,
     private auditService: AuditService,
+    private sms: SmsService,
   ) {}
 
   async approve(
@@ -201,6 +203,18 @@ export class RegistrationService {
     });
 
     const emailEnabled = isEmailEnabled();
+
+    if (registration.phone) {
+      // Never fail the approval because of an SMS problem.
+      await this.sms
+        .send(
+          registration.phone,
+          emailEnabled
+            ? `PharmaGuard AI: ${registration.organizationName} is approved. Check your email ${registration.email} to activate your account (link valid 24h).`
+            : `PharmaGuard AI: ${registration.organizationName} is approved. Activate your account: ${(process.env.FRONTEND_URL || process.env.CORS_ORIGINS?.split(',')[0] || 'http://localhost:5173').trim().replace(/\/$/, '')}/activate?token=${token}`,
+        )
+        .catch(() => false);
+    }
     return {
       message: emailEnabled
         ? 'Registration approved. Activation email sent.'
@@ -285,6 +299,15 @@ export class RegistrationService {
     },
 
     });
+
+    if (rejectedRegistration.phone) {
+      await this.sms
+        .send(
+          rejectedRegistration.phone,
+          `PharmaGuard AI: your registration for ${rejectedRegistration.organizationName} was not approved. Reason: ${reason}. You can correct the details and register again.`,
+        )
+        .catch(() => false);
+    }
 
     await this.emailService.sendRejectionEmail(
       rejectedRegistration.email,
