@@ -177,7 +177,7 @@ export class RecallsService {
         title: 'Recall Updated',
         message: `Recall ${recall.recallNumber} for ${recall.batch.batchNumber} was updated${dto.severity ? ` (severity ${dto.severity})` : ''}${dto.status ? ` (status ${dto.status})` : ''}.`,
         type: 'RECALL',
-        priority: (dto.severity ?? recall.severity) === 'CRITICAL' ? 'CRITICAL' : 'MEDIUM',
+        priority: (dto.severity ?? recall.severity) === 'CRITICAL' ? 'CRITICAL' : (dto.severity ?? recall.severity) === 'HIGH' ? 'HIGH' : 'MEDIUM',
         actionUrl: '/recalls',
         metadata: { recallId: id },
       });
