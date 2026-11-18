@@ -13,12 +13,19 @@ PharmaGuard AI tracks every medicine batch from manufacturer to patient, stores 
 | | Link |
 |---|---|
 | 🌐 **Web app** | **[pharmaguard-ai-tawny.vercel.app](https://pharmaguard-ai-tawny.vercel.app)** |
+| 📱 **Android app** | **[Download PharmaGuard-AI.apk](https://github.com/kalavalashivaharikowshik/pharmaguard-ai/releases/latest/download/PharmaGuard-AI.apk)** |
 | ⚙️ **API** | [pharmaguard-api-rktk.onrender.com](https://pharmaguard-api-rktk.onrender.com/health) |
 | 📖 **API docs (Swagger)** | [pharmaguard-api-rktk.onrender.com/api/docs](https://pharmaguard-api-rktk.onrender.com/api/docs) |
 
 Sign in with any [demo account](#demo-accounts) (password `Demo@1234`). Try **pharmacy@pharmaguard.ai** on the phone and **regulator@pharmaguard.ai** on the web.
 
 > ⏳ The API runs on Render's free plan and sleeps when idle. The first request after a break can take up to a minute; after that it is fast.
+
+### Install the Android app
+
+1. Open the **Download PharmaGuard-AI.apk** link above on your Android phone.
+2. Open the downloaded file and allow **Install unknown apps** when asked.
+3. Launch **PharmaGuard AI**, sign in with a demo account and allow notifications.
 
 ---
 
