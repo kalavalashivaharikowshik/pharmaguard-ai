@@ -32,7 +32,15 @@ const StockMap = lazy(() => import('./pages/StockMap'));
 const Disposals = lazy(() => import('./pages/Disposals'));
 const Violations = lazy(() => import('./pages/Violations'));
 const NotFound = lazy(() => import('./pages/NotFound'));
+const Landing = lazy(() => import('./pages/Landing'));
 import RoleProtectedRoute from './auth/RoleProtectedRoute';
+import { useAuth } from './auth/AuthContext';
+
+/** Visitors see the public home page; signed-in users see their dashboard. */
+function HomeRoute() {
+  const { token } = useAuth();
+  return token ? <Dashboard /> : <Landing />;
+}
 
 export default function App() {
 
@@ -74,11 +82,7 @@ export default function App() {
 
       <Route
         path="/"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
+        element={<HomeRoute />}
       />
 
       <Route
