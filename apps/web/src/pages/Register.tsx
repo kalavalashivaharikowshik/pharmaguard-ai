@@ -4,6 +4,7 @@ import {
 
 import {
   useNavigate,
+  Link,
 } from 'react-router-dom';
 
 import Card
@@ -146,6 +147,10 @@ export default function Register() {
   return (
 
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-cyan-50 to-teal-100 flex items-center justify-center px-6 py-12">
+
+      <Link to="/" style={{ position: 'fixed', top: 16, left: 16, zIndex: 50, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.92)', color: '#0F4C81', fontWeight: 600, fontSize: 14, textDecoration: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
+        ← Home
+      </Link>
 
 
       <div className="w-full max-w-6xl grid lg:grid-cols-2 gap-10 items-center">

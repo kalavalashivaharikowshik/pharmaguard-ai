@@ -862,6 +862,10 @@ export default function Login() {
 
       {controller.showOverlay && <AccessOverlay />}
 
+      <Link to="/" style={{ position: 'fixed', top: 16, left: 16, zIndex: 50, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.92)', color: '#0F4C81', fontWeight: 600, fontSize: 14, textDecoration: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
+        ← Home
+      </Link>
+
       <div style={{ minHeight: '100vh', display: 'flex', fontFamily: FONTS.body }}>
         <BrandPanel />
         <LoginForm
